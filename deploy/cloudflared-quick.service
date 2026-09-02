@@ -1,0 +1,30 @@
+[Unit]
+Description=Temporary HTTPS tunnel for Calltranslate
+After=network-online.target calltranslate.service
+Wants=network-online.target
+Requires=calltranslate.service
+
+[Service]
+Type=simple
+User=calltranslate
+Group=calltranslate
+ExecStart=/usr/bin/cloudflared tunnel --no-autoupdate --url http://127.0.0.1:8000
+Restart=on-failure
+RestartSec=5
+UMask=0077
+
+NoNewPrivileges=true
+PrivateDevices=true
+PrivateTmp=true
+ProtectControlGroups=true
+ProtectHome=true
+ProtectKernelModules=true
+ProtectKernelTunables=true
+ProtectSystem=strict
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictRealtime=true
+RestrictSUIDSGID=true
+LockPersonality=true
+
+[Install]
+WantedBy=multi-user.target
