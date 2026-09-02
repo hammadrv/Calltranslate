@@ -1,8 +1,7 @@
 [Unit]
 Description=Temporary HTTPS tunnel for Calltranslate
 After=network-online.target calltranslate.service
-Wants=network-online.target
-Requires=calltranslate.service
+Wants=network-online.target calltranslate.service
 
 [Service]
 Type=simple
