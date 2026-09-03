@@ -1,0 +1,291 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Calltranslate — دليل التوثيق البرمجي الشامل (Developer Documentation)</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <style>
+      :root {
+        --bg-main: #0c1219;
+        --bg-card: #17212b;
+        --bg-code: #10161f;
+        --accent-blue: #5288c1;
+        --accent-green: #4fae6a;
+        --accent-orange: #f59e0b;
+        --text-primary: #f0f3f6;
+        --text-secondary: #8b9bb0;
+        --border: rgba(255, 255, 255, 0.08);
+        --font: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      }
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+      body {
+        font-family: var(--font);
+        background-color: var(--bg-main);
+        color: var(--text-primary);
+        line-height: 1.65;
+        padding: 32px 20px 80px;
+        direction: rtl;
+      }
+      .container {
+        max-width: 960px;
+        margin: 0 auto;
+      }
+      header {
+        border-bottom: 1px solid var(--border);
+        padding-bottom: 24px;
+        margin-bottom: 32px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 16px;
+      }
+      h1 { font-size: 1.8rem; color: #fff; margin-bottom: 6px; }
+      p.subtitle { color: var(--text-secondary); font-size: 0.95rem; }
+      .nav-links { display: flex; gap: 12px; }
+      .btn-nav {
+        background: rgba(82, 136, 193, 0.15);
+        color: var(--accent-blue);
+        text-decoration: none;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        border: 1px solid rgba(82, 136, 193, 0.3);
+      }
+      .btn-nav:hover { background: rgba(82, 136, 193, 0.25); }
+      .card {
+        background-color: var(--bg-card);
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 24px 28px;
+        margin-bottom: 28px;
+      }
+      h2 {
+        font-size: 1.35rem;
+        color: var(--accent-blue);
+        margin-bottom: 16px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        padding-bottom: 8px;
+      }
+      h3 {
+        font-size: 1.1rem;
+        color: #fff;
+        margin: 18px 0 8px;
+      }
+      ul, ol {
+        padding-right: 24px;
+        margin-bottom: 14px;
+        color: var(--text-primary);
+      }
+      li { margin-bottom: 6px; }
+      pre {
+        background-color: var(--bg-code);
+        border: 1px solid var(--border);
+        border-radius: 10px;
+        padding: 14px 18px;
+        overflow-x: auto;
+        font-family: "SFMono-Regular", Consolas, Menlo, Monaco, monospace;
+        font-size: 0.88rem;
+        color: #79b8ff;
+        direction: ltr;
+        text-align: left;
+        margin: 12px 0;
+      }
+      code {
+        font-family: "SFMono-Regular", Consolas, Menlo, monospace;
+        background-color: rgba(255, 255, 255, 0.08);
+        padding: 2px 6px;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        color: #ffc107;
+        direction: ltr;
+        display: inline-block;
+      }
+      .badge {
+        display: inline-block;
+        font-size: 0.75rem;
+        font-weight: bold;
+        padding: 2px 8px;
+        border-radius: 10px;
+        margin-right: 6px;
+      }
+      .badge-green { background: rgba(79, 174, 106, 0.2); color: var(--accent-green); }
+      .badge-blue { background: rgba(82, 136, 193, 0.2); color: var(--accent-blue); }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin: 14px 0;
+        font-size: 0.9rem;
+      }
+      th, td {
+        padding: 10px 14px;
+        border: 1px solid var(--border);
+        text-align: right;
+      }
+      th { background-color: rgba(255, 255, 255, 0.04); color: var(--text-secondary); }
+      .note-box {
+        background-color: rgba(245, 158, 11, 0.1);
+        border-right: 4px solid var(--accent-orange);
+        padding: 12px 16px;
+        border-radius: 4px;
+        margin: 14px 0;
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <header>
+        <div>
+          <h1>توثيق النظام البرمجي الشامل (Architecture Documentation)</h1>
+          <p class="subtitle">مرجع تفصيلي للمطورين لبيئة عمل ومشروع Calltranslate</p>
+        </div>
+        <div class="nav-links">
+          <a href="/app" class="btn-nav">📱 فتح التطبيق (App)</a>
+          <a href="/admin" class="btn-nav">⚙️ لوحة الإدارة (Admin)</a>
+        </div>
+      </header>
+
+      <!-- 1. Overview -->
+      <section class="card">
+        <h2>1. المعمارية العامة ومكونات النظام (System Overview)</h2>
+        <p>نظام <strong>Calltranslate</strong> هو منصة متكاملة للاتصال الصوتي والمحادثات المترجمة فورياً بنمط تطبيق Telegram، مبنية على التقنيات التالية:</p>
+        <ul>
+          <li><strong>Backend Framework:</strong> Python 3.12+ مع <code>FastAPI</code> و <code>Uvicorn</code> و <code>WebSockets</code> غير المتزامنة.</li>
+          <li><strong>Database:</strong> <code>SQLite3</code> مع تفعيل نمط <code>WAL (Write-Ahead Logging)</code> وربط المفاتيح الخارجية <code>PRAGMA foreign_keys=ON;</code>.</li>
+          <li><strong>WebRTC Media:</strong> اتصال صوتي مباشر Peer-to-Peer بين طرفي المكالمة لنقل الصوت بأدنى زمن تأخير (Ultra-low latency).</li>
+          <li><strong>AI Translation Engine:</strong> دعم ثنائي لموديل <strong>Google Gemini Multimodal Live API</strong> (عبر Bidi WebSocket) و <strong>OpenAI Realtime API</strong>. الموديل الافتراضي هو <code>Gemini 3.5 Live (gemini-3.5-live-translate-preview)</code>.</li>
+          <li><strong>Signaling & Presence Hub:</strong> فئة <code>UserHub</code> للتعامل مع وجود المستخدمين (Online/Offline)، إرسال إشعارات طلبات الصداقة المباشرة، وإشارات رنين المكالمات.</li>
+        </ul>
+      </section>
+
+      <!-- 2. Database -->
+      <section class="card">
+        <h2>2. هيكل وتصميم قاعدة البيانات (Database Schema)</h2>
+        <p>يتم تخزين جميع البيانات بملف واحد دائم <code>calltranslate.db</code>. الجداول الأساسية:</p>
+        <table>
+          <thead>
+            <tr><th>اسم الجدول</th><th>الوظيفة</th><th>الحقول الأساسية</th></tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>users</code></td>
+              <td>حسابات المستخدمين والصلاحيات</td>
+              <td><code>id, username, password_hash, salt, display_name, language, assigned_model, is_admin, created_at, last_seen</code></td>
+            </tr>
+            <tr>
+              <td><code>contacts</code></td>
+              <td>قوائم الأصدقاء وجهات الاتصال</td>
+              <td><code>id, user_id, contact_user_id, created_at</code></td>
+            </tr>
+            <tr>
+              <td><code>friend_requests</code></td>
+              <td>طلبات الصداقة الصادرة والواردة</td>
+              <td><code>id, from_user_id, to_user_id, created_at</code></td>
+            </tr>
+            <tr>
+              <td><code>messages</code></td>
+              <td>المحادثات الكتابية والترجمة الفورية</td>
+              <td><code>id, from_user_id, to_user_id, original_text, translated_text, from_lang, to_lang, created_at</code></td>
+            </tr>
+            <tr>
+              <td><code>sessions</code></td>
+              <td>جلسات تسجيل الدخول وتوكنات Bearer</td>
+              <td><code>token, user_id, created_at, expires_at</code></td>
+            </tr>
+          </tbody>
+        </table>
+        <h3>حماية وتشفير كلمات المرور:</h3>
+        <p>تستخدم الدالة <code>db.hash_password()</code> خوارزمية <code>PBKDF2-HMAC-SHA256</code> بـ 100,000 تكرار مع ملح عشوائي 16-byte فريد لكل مستخدم.</p>
+        <div class="note-box">
+          <strong>ملاحظة للمطور:</strong> تم عزل بيئة الاختبارات (Pytest) بحيث تستخدم مسار قاعدة بيانات مؤقت في <code>/tmp</code> عبر متغير البيئة <code>CALLTRANSLATE_DB_PATH</code>، لضمان عدم حذف أو تصفير بيانات الإنتاج نهائياً عند تنفيذ الفحوصات البرمجية.
+        </div>
+      </section>
+
+      <!-- 3. Realtime Audio & Interpretation Flow -->
+      <section class="card">
+        <h2>3. دورة حياة المكالمة والترجمة الصوتية (Audio & Call Flow)</h2>
+        <ol>
+          <li>
+            <strong>إرسال إشارة الاتصال (Call Signaling):</strong>
+            يقوم المستخدم أ بإرسال <code>{"type": "call_user", "target": "bob"}</code> عبر <code>/ws/user-hub</code>. يتحقق السيرفر من وجود المستخدم وحالته (Online)، ثم ينشئ غرفة مؤقتة برمز فريد عبر <code>room_store.issue_fixed_access(room_id, role)</code> لكل طرف.
+          </li>
+          <li>
+            <strong>رنين وقبول المكالمة:</strong>
+            يستلم المستخدم ب حدث <code>incoming_call</code> مع إشارة صوتية ونافذة رنين. عند الضغط على قبول (Accept)، يرسل <code>accept_call</code>.
+          </li>
+          <li>
+            <strong>إنشاء مسار WebRTC (P2P):</strong>
+            يتصل الطرفان بمقبس الإشارات <code>/ws/{room_id}/{role}</code> ببروتوكول <code>calltranslate</code> وتوكن الدخول <code>ct_...</code>، ويتبادلان عروض <code>SDP Offer / Answer</code> ومرشحات <code>ICE Candidates</code>.
+          </li>
+          <li>
+            <strong>التقاط الصوت وعلاج مشكلة متصفحات كروميوم (Chromium RTP Puller):</strong>
+            متصفحات كروميوم تتجاهل فك تشفير مسار WebRTC الصوتي ما لم يتم ربطه بعنصر وسائط نشط. يتم ربط المسار الصوتي فورياً بـ:
+            <pre>&lt;audio id="appAudioPuller" muted playsinline hidden&gt;&lt;/audio&gt;</pre>
+            ثم سحبه إلى <code>AudioContext.createMediaStreamSource(stream)</code>.
+          </li>
+          <li>
+            <strong>معالجة وبث الصوت للذكاء الاصطناعي (Gemini Live interpretation):</strong>
+            يتم تخفيض معدل العينات (Downsampling) من عينة المتصفح إلى <code>16,000 Hz 16-bit Mono PCM</code> وبثها بصيغة Base64 كقطع <code>realtimeInput</code> عبر WebSocket إلى <code>GenerativeService.BidiGenerateContent</code>.
+          </li>
+          <li>
+            <strong>تشغيل الترجمة الصوتية:</strong>
+            يعيد النموذج دفقات صوتية PCM بمعدل <code>24,000 Hz</code>، يتم تحويلها إلى Float32 وتشغيلها بتسلسل زمني سلس عبر <code>AudioContext.createBufferSource()</code> في أذن الطرف الآخر.
+          </li>
+        </ol>
+      </section>
+
+      <!-- 4. Text Chat and Translation -->
+      <section class="card">
+        <h2>4. المحادثة الكتابية والترجمة المباشرة (Chat & Translation)</h2>
+        <ul>
+          <li><strong>واجهة المحادثة:</strong> عند الضغط على أي جهة اتصال، تفتح شاشة المحادثة المباشرة بنمط فقاعات التيليجرام.</li>
+          <li><strong>الترجمة التلقائية:</strong> يتم إرسال النص إلى <code>POST /api/messages/{username}</code>، حيث تقوم الدالة <code>translate_text()</code> بترجمة النص تلقائياً عبر نموذج Gemini إلى لغة المستلم.</li>
+          <li><strong>عرض الرسائل:</strong> تظهر كل فقاعة محادثة النص الأصلي وتحته سطر الترجمة الفورية بلون هادئ مع وقت الإرسال.</li>
+          <li><strong>التوصيل اللحظي:</strong> يتم تسليم الرسالة المنشورة عبر <code>user_hub.send_to_user()</code> في نفس اللحظة عبر الـ WebSocket للمستلم دون الحاجة لتحديث الصفحة.</li>
+        </ul>
+      </section>
+
+      <!-- 5. Friend Requests & Profile Deletion -->
+      <section class="card">
+        <h2>5. نظام الصداقات والبروفايل (Friend Requests & Contacts)</h2>
+        <ul>
+          <li><strong>الطلبات الصادرة (Outgoing Requests):</strong> عند إرسال طلب صداقة، يظهر فوراً في شاشة المرسل تحت <em>"طلبات الصداقة الصادرة (بانتظار الموافقة)"</em> مع إمكانية إلغاء الطلب.</li>
+          <li><strong>الطلبات الواردة (Incoming Requests):</strong> تظهر للمستلم لحظياً عبر الـ WebSocket تحت <em>"طلبات الصداقة الواردة"</em> مع زري قبول ورفض.</li>
+          <li><strong>حذف الصديق (Delete Contact):</strong> زر الحذف موجود حصرياً داخل شاشة المحادثة / البروفايل الخاصة بالمستخدم (وليس في القائمة الرئيسية) للحفاظ على تجربة استخدام نظيفة وبسيطة.</li>
+        </ul>
+      </section>
+
+      <!-- 6. Deployment & Admin -->
+      <section class="card">
+        <h2>6. تشغيل السيرفر والإدارة (Deployment & Administration)</h2>
+        <h3>إدارة الخدمة على السيرفر (Systemd Service):</h3>
+        <pre># مسار ملف الخدمة
+/etc/systemd/system/calltranslate.service
+
+# أوامر التحكم الأساسية
+sudo systemctl restart calltranslate
+sudo systemctl status calltranslate
+sudo journalctl -u calltranslate -n 50 -f</pre>
+
+        <h3>صلاحيات قاعدة البيانات:</h3>
+        <p>يجب أن تملك خدمة <code>calltranslate</code> صلاحية الكتابة للمجلد <code>/srv/calltranslate</code> عبر تفعيل <code>ReadWritePaths=/srv/calltranslate</code> وضبط الصلاحيات:</p>
+        <pre>sudo chown -R calltranslate:calltranslate /srv/calltranslate/calltranslate.db*
+sudo chmod 664 /srv/calltranslate/calltranslate.db*</pre>
+
+        <h3>لوحة الإدارة (Admin Panel):</h3>
+        <p>تتيح لوحة الإدارة في <code>/admin</code> للمسؤول التحكم بنموذج الترجمة المخصص لكل مستخدم على حدة من بين:</p>
+        <ul>
+          <li><code>gemini-3.5-live-translate-preview</code> (الافتراضي - الأحدث والأعلى دقة)</li>
+          <li><code>gemini-2.5-flash-native-audio-latest</code></li>
+          <li><code>openai-realtime</code></li>
+        </ul>
+      </section>
+    </div>
+  </body>
+</html>

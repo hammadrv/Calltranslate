@@ -272,6 +272,10 @@ class AdminPasswordInput(BaseModel):
     password: str = Field(min_length=6, max_length=128)
 
 
+class MessageInput(BaseModel):
+    text: str = Field(min_length=1, max_length=2000)
+
+
 @dataclass
 class RoomRecord:
     expires_at: int
@@ -900,6 +904,14 @@ async def admin_page() -> FileResponse:
     )
 
 
+@app.get("/docs-app", include_in_schema=False)
+async def docs_app_page() -> FileResponse:
+    return FileResponse(
+        STATIC_DIR / "docs.html",
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
+
+
 @app.get("/healthz", include_in_schema=False)
 async def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
@@ -991,8 +1003,9 @@ async def delete_contact(username: str, request: Request) -> JSONResponse:
 @app.get("/api/friend-requests")
 async def get_friend_requests(request: Request) -> JSONResponse:
     user = get_current_user(request)
-    requests = db.list_incoming_friend_requests(user["id"])
-    return JSONResponse({"requests": requests})
+    incoming = db.list_incoming_friend_requests(user["id"])
+    outgoing = db.list_outgoing_friend_requests(user["id"])
+    return JSONResponse({"incoming": incoming, "outgoing": outgoing, "requests": incoming})
 
 
 @app.post("/api/friend-requests")
@@ -1039,6 +1052,100 @@ async def reject_friend_request(request_id: int, request: Request) -> JSONRespon
     user = get_current_user(request)
     db.reject_friend_request(request_id, user["id"])
     return JSONResponse({"status": "rejected"})
+
+
+@app.post("/api/friend-requests/{request_id}/cancel")
+async def cancel_friend_request(request_id: int, request: Request) -> JSONResponse:
+    user = get_current_user(request)
+    db.cancel_friend_request(request_id, user["id"])
+    return JSONResponse({"status": "cancelled"})
+
+
+# Real-time Translation Helper for Text Chat
+async def translate_text(text: str, source_lang: str, target_lang: str) -> str:
+    if source_lang == target_lang or not text.strip():
+        return ""
+    target_name = "Arabic" if target_lang == "ar" else "English"
+    gemini_key = os.getenv("GEMINI_API_KEY", "")
+    if gemini_key:
+        try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
+            prompt = (
+                f"You are an instant chat translator. Translate the following user message into natural, casual {target_name}. "
+                f"Output ONLY the translated message, with no quotes, notes, explanations, or extra text:\n\n{text}"
+            )
+            async with httpx.AsyncClient(timeout=4.0) as client:
+                res = await client.post(url, json={"contents": [{"parts": [{"text": prompt}]}]})
+                if res.status_code == 200:
+                    data = res.json()
+                    parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                    if parts and parts[0].get("text"):
+                        return parts[0]["text"].strip()
+        except Exception as exc:
+            logger.warning("Gemini text translation failed: %s", exc)
+    return ""
+
+
+# Chat Messages Endpoints
+@app.get("/api/messages/{username}")
+async def get_chat_messages(username: str, request: Request) -> JSONResponse:
+    user = get_current_user(request)
+    conn = db.get_connection()
+    try:
+        target_row = conn.execute(
+            "SELECT id, username, display_name, language FROM users WHERE username = ?",
+            (username.strip().lower(),)
+        ).fetchone()
+        if not target_row:
+            raise HTTPException(status_code=404, detail="User not found")
+        target_id = target_row["id"]
+    finally:
+        conn.close()
+
+    msgs = db.list_conversation_messages(user["id"], target_id, limit=60)
+    return JSONResponse({"messages": msgs})
+
+
+@app.post("/api/messages/{username}")
+async def send_chat_message(username: str, data: MessageInput, request: Request) -> JSONResponse:
+    user = get_current_user(request)
+    conn = db.get_connection()
+    try:
+        target_row = conn.execute(
+            "SELECT id, username, display_name, language FROM users WHERE username = ?",
+            (username.strip().lower(),)
+        ).fetchone()
+        if not target_row:
+            raise HTTPException(status_code=404, detail="User not found")
+        target_id = target_row["id"]
+        target_lang = target_row["language"]
+    finally:
+        conn.close()
+
+    text = data.text.strip()
+    translated = await translate_text(text, user["language"], target_lang)
+
+    msg_record = db.save_message(
+        from_user_id=user["id"],
+        to_user_id=target_id,
+        original_text=text,
+        translated_text=translated,
+        from_lang=user["language"],
+        to_lang=target_lang,
+    )
+
+    # Real-time WebSocket delivery to recipient
+    await user_hub.send_to_user(
+        username.lower(),
+        {
+            "type": "new_chat_message",
+            "message": msg_record,
+            "sender_username": user["username"],
+            "sender_name": user["display_name"],
+        },
+    )
+
+    return JSONResponse({"message": msg_record})
 
 
 # Admin Dashboard Endpoints

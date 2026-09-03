@@ -32,19 +32,16 @@
           <div id="currentUserAvatar" class="user-avatar-sm">U</div>
           <div class="user-info-text">
             <h3 id="currentUserName">المستخدم</h3>
-            <p id="currentUserHandle">@user</p>
+            <div class="user-handle-row">
+              <span class="user-handle-prefix">حسابك:</span>
+              <span id="currentUserHandle" dir="ltr" class="user-handle-tag">@user</span>
+            </div>
           </div>
         </div>
         <div class="header-buttons">
           <button id="btnToggleLang" class="icon-btn" title="تبديل لغة الترجمة">
             <span id="currentUserLangBadge" class="lang-pill">AR</span>
           </button>
-          <a id="btnAdminPanel" href="/admin" class="icon-btn hidden" title="لوحة التحكم">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
-            </svg>
-          </a>
           <button id="btnLogout" class="icon-btn" title="تسجيل الخروج">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
@@ -55,15 +52,26 @@
         </div>
       </header>
 
-      <!-- Add Friend Bar -->
+      <!-- Search / Add Friend Bar -->
       <section class="search-add-box">
         <div class="search-input-wrap">
-          <input type="text" id="addFriendInput" placeholder="أضف صديق بالـ @username...">
+          <input 
+            type="search" 
+            id="addFriendInput" 
+            name="friend_search_query_no_autofill" 
+            placeholder="أضف صديق بالـ @username..." 
+            autocomplete="off" 
+            autocorrect="off" 
+            autocapitalize="off" 
+            spellcheck="false" 
+            data-lpignore="true" 
+            data-1p-ignore="true"
+          >
           <button id="btnAddFriend" class="btn-add-friend">إضافة</button>
         </div>
       </section>
 
-      <!-- Friend Requests (Hidden if empty) -->
+      <!-- Incoming Friend Requests -->
       <section id="friendRequestsSection" class="friend-requests-section hidden">
         <div class="friend-requests-title">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -74,19 +82,83 @@
           </svg>
           <span>طلبات الصداقة الواردة</span>
         </div>
-        <div id="friendRequestsList">
-          <!-- Populated by app.js -->
-        </div>
+        <div id="friendRequestsList"></div>
       </section>
 
-      <!-- Contacts Scroll View -->
-      <main class="contacts-scroll">
-        <div id="contactsContainer">
-          <!-- Populated by app.js -->
+      <!-- Outgoing Friend Requests (Pending Approval) -->
+      <section id="outgoingRequestsSection" class="friend-requests-section hidden" style="background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.25);">
+        <div class="friend-requests-title" style="color: #f59e0b;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"/>
+            <polyline points="12 6 12 12 16 14"/>
+          </svg>
+          <span>طلبات الصداقة الصادرة (بانتظار الموافقة)</span>
         </div>
+        <div id="outgoingRequestsList"></div>
+      </section>
+
+      <!-- Contacts List Scroll View -->
+      <main class="contacts-scroll">
+        <div id="contactsContainer"></div>
       </main>
 
-      <!-- Fullscreen Call Overlay -->
+      <!-- Telegram Chat & Profile View Overlay -->
+      <div id="chatViewOverlay" class="chat-screen-overlay hidden">
+        <header class="chat-header">
+          <div class="chat-header-user">
+            <button id="btnChatBack" class="btn-chat-back" title="رجوع">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+            <div id="chatContactAvatar" class="user-avatar-sm" style="width:34px;height:34px;font-size:0.9rem;">C</div>
+            <div class="chat-header-meta">
+              <h4 id="chatContactName">Contact</h4>
+              <p id="chatContactStatus">Online</p>
+            </div>
+          </div>
+          <div class="chat-header-actions">
+            <span id="chatContactLangBadge" class="lang-pill">EN</span>
+            <!-- Green Call Button -->
+            <button id="btnChatCall" class="btn-header-call" title="بدء مكالمة صوتية مترجمة">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+              </svg>
+            </button>
+            <!-- Delete Contact inside Profile -->
+            <button id="btnChatDelete" class="btn-header-del" title="حذف جهة الاتصال">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <polyline points="3 6 5 6 21 6"/>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                <line x1="10" y1="11" x2="10" y2="17"/>
+                <line x1="14" y1="11" x2="14" y2="17"/>
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <!-- Messages scroll container -->
+        <div id="chatMessagesContainer" class="chat-messages-scroll"></div>
+
+        <!-- Chat Input Bar -->
+        <form id="chatInputForm" class="chat-input-bar">
+          <input 
+            type="text" 
+            id="chatTextInput" 
+            placeholder="اكتب رسالة مترجمة..." 
+            autocomplete="off" 
+            required
+          >
+          <button type="submit" class="btn-send-msg" title="إرسال">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="22" y1="2" x2="11" y2="13"/>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+            </svg>
+          </button>
+        </form>
+      </div>
+
+      <!-- In-Call Fullscreen Overlay -->
       <div id="callOverlay" class="call-fullscreen-overlay hidden">
         <div class="call-header-info">
           <h2 id="callTargetName" class="call-target-name">Contact</h2>
@@ -115,7 +187,7 @@
           </button>
           <button id="btnCallEnd" class="btn-call-circle btn-hangup-call" title="إنهاء المكالمة">
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/>
+              <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/>
               <line x1="23" y1="1" x2="1" y2="23"/>
             </svg>
           </button>
@@ -152,7 +224,7 @@
             <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
           </svg>
           <h2>Telegram Translate</h2>
-          <p style="color: var(--tg-text-secondary); font-size: 0.85rem;">مكالمات مترجمة فورية بين اللغات</p>
+          <p style="color: var(--tg-text-secondary); font-size: 0.85rem;">مكالمات ومحادثات مترجمة فورية</p>
         </div>
 
         <div class="auth-tabs-row">
@@ -160,33 +232,31 @@
           <button id="tabRegister" class="auth-tab-btn">حساب جديد</button>
         </div>
 
-        <!-- Login Form -->
         <form id="loginForm" class="auth-form-body">
           <div class="input-group">
             <label for="loginUsername">اسم المستخدم (Username)</label>
-            <input type="text" id="loginUsername" class="input-field" required autocomplete="username">
+            <input type="text" id="loginUsername" name="username" class="input-field" required autocomplete="username">
           </div>
           <div class="input-group">
             <label for="loginPassword">كلمة المرور (Password)</label>
-            <input type="password" id="loginPassword" class="input-field" required autocomplete="current-password">
+            <input type="password" id="loginPassword" name="password" class="input-field" required autocomplete="current-password">
           </div>
           <div id="loginError" class="form-error-msg hidden"></div>
           <button type="submit" class="btn-auth-submit">دخول</button>
         </form>
 
-        <!-- Register Form -->
         <form id="registerForm" class="auth-form-body hidden">
           <div class="input-group">
             <label for="regUsername">اسم المستخدم الجديد (Username)</label>
-            <input type="text" id="regUsername" class="input-field" required minlength="3">
+            <input type="text" id="regUsername" name="username" class="input-field" required minlength="3">
           </div>
           <div class="input-group">
             <label for="regDisplayName">الاسم الظاهر (Display Name)</label>
-            <input type="text" id="regDisplayName" class="input-field">
+            <input type="text" id="regDisplayName" name="display_name" class="input-field">
           </div>
           <div class="input-group">
             <label for="regPassword">كلمة المرور (Password)</label>
-            <input type="password" id="regPassword" class="input-field" required minlength="6">
+            <input type="password" id="regPassword" name="password" class="input-field" required minlength="6">
           </div>
           <div class="input-group">
             <label for="regLanguage">لغتك الأساسية</label>

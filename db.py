@@ -7,7 +7,13 @@ import time
 from pathlib import Path
 from typing import Any
 
-DB_PATH = Path(os.getenv("DATABASE_PATH", Path(__file__).resolve().parent / "calltranslate.db"))
+def get_db_path() -> Path:
+    override = os.getenv("CALLTRANSLATE_DB_PATH") or os.getenv("DATABASE_PATH")
+    if override:
+        return Path(override)
+    return Path(__file__).resolve().parent / "calltranslate.db"
+
+
 DEFAULT_MODEL = "gemini-3.5-live-translate-preview"
 AVAILABLE_MODELS = [
     {"id": "default", "name": "Default (Gemini 3.5 Live)"},
@@ -18,7 +24,7 @@ AVAILABLE_MODELS = [
 
 
 def get_connection() -> sqlite3.Connection:
-    conn = sqlite3.connect(str(DB_PATH), check_same_thread=False)
+    conn = sqlite3.connect(str(get_db_path()), check_same_thread=False)
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL;")
     conn.execute("PRAGMA foreign_keys=ON;")
@@ -90,6 +96,22 @@ def init_db() -> None:
                     FOREIGN KEY(user_id) REFERENCES users(id) ON DELETE CASCADE
                 )
             """)
+
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS messages (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    from_user_id INTEGER NOT NULL,
+                    to_user_id INTEGER NOT NULL,
+                    original_text TEXT NOT NULL,
+                    translated_text TEXT NOT NULL DEFAULT '',
+                    from_lang TEXT NOT NULL DEFAULT 'ar',
+                    to_lang TEXT NOT NULL DEFAULT 'en',
+                    created_at INTEGER NOT NULL,
+                    FOREIGN KEY(from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    FOREIGN KEY(to_user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+            """)
+            conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_pair ON messages(from_user_id, to_user_id);")
 
             # Seed default admin if not exists
             admin = conn.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
@@ -369,6 +391,40 @@ def reject_friend_request(request_id: int, user_id: int) -> None:
         conn.close()
 
 
+def list_outgoing_friend_requests(user_id: int) -> list[dict[str, Any]]:
+    conn = get_connection()
+    try:
+        rows = conn.execute("""
+            SELECT r.id AS request_id, u.id AS to_user_id, u.username, u.display_name, u.language, r.created_at
+            FROM friend_requests r
+            JOIN users u ON r.to_user_id = u.id
+            WHERE r.from_user_id = ?
+            ORDER BY r.created_at DESC
+        """, (user_id,)).fetchall()
+        return [
+            {
+                "request_id": r["request_id"],
+                "to_user_id": r["to_user_id"],
+                "username": r["username"],
+                "display_name": r["display_name"],
+                "language": r["language"],
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+def cancel_friend_request(request_id: int, user_id: int) -> None:
+    conn = get_connection()
+    try:
+        with conn:
+            conn.execute("DELETE FROM friend_requests WHERE id = ? AND from_user_id = ?", (request_id, user_id))
+    finally:
+        conn.close()
+
+
 def remove_contact(user_id: int, contact_username: str) -> None:
     conn = get_connection()
     try:
@@ -464,6 +520,71 @@ def delete_user(user_id: int) -> None:
     try:
         with conn:
             conn.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    finally:
+        conn.close()
+
+
+def save_message(
+    from_user_id: int,
+    to_user_id: int,
+    original_text: str,
+    translated_text: str,
+    from_lang: str,
+    to_lang: str,
+) -> dict[str, Any]:
+    conn = get_connection()
+    try:
+        now = int(time.time())
+        with conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO messages (from_user_id, to_user_id, original_text, translated_text, from_lang, to_lang, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
+                """,
+                (from_user_id, to_user_id, original_text, translated_text, from_lang, to_lang, now),
+            )
+            msg_id = cursor.lastrowid
+        return {
+            "id": msg_id,
+            "from_user_id": from_user_id,
+            "to_user_id": to_user_id,
+            "original_text": original_text,
+            "translated_text": translated_text,
+            "from_lang": from_lang,
+            "to_lang": to_lang,
+            "created_at": now,
+        }
+    finally:
+        conn.close()
+
+
+def list_conversation_messages(user_id1: int, user_id2: int, limit: int = 60) -> list[dict[str, Any]]:
+    conn = get_connection()
+    try:
+        rows = conn.execute(
+            """
+            SELECT id, from_user_id, to_user_id, original_text, translated_text, from_lang, to_lang, created_at
+            FROM messages
+            WHERE (from_user_id = ? AND to_user_id = ?)
+               OR (from_user_id = ? AND to_user_id = ?)
+            ORDER BY created_at ASC, id ASC
+            LIMIT ?
+            """,
+            (user_id1, user_id2, user_id2, user_id1, limit),
+        ).fetchall()
+        return [
+            {
+                "id": r["id"],
+                "from_user_id": r["from_user_id"],
+                "to_user_id": r["to_user_id"],
+                "original_text": r["original_text"],
+                "translated_text": r["translated_text"],
+                "from_lang": r["from_lang"],
+                "to_lang": r["to_lang"],
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
     finally:
         conn.close()
 

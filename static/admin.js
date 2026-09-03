@@ -1,11 +1,13 @@
 (() => {
-  const token = localStorage.getItem("calltranslate_usr_token");
-  if (!token) {
-    location.href = "/app";
-    return;
-  }
+  let adminToken = localStorage.getItem("calltranslate_admin_token") || "";
 
   const dom = {
+    adminLoginOverlay: document.getElementById("adminLoginOverlay"),
+    adminDashboardView: document.getElementById("adminDashboardView"),
+    adminLoginForm: document.getElementById("adminLoginForm"),
+    adminUsername: document.getElementById("adminUsername"),
+    adminPassword: document.getElementById("adminPassword"),
+    adminLoginError: document.getElementById("adminLoginError"),
     usersTableBody: document.getElementById("usersTableBody"),
     statTotalUsers: document.getElementById("statTotalUsers"),
     statOnlineUsers: document.getElementById("statOnlineUsers"),
@@ -24,17 +26,64 @@
 
   function authHeaders() {
     return {
-      Authorization: `Bearer ${token}`,
+      Authorization: `Bearer ${adminToken}`,
       "Content-Type": "application/json",
     };
+  }
+
+  dom.adminLoginForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    dom.adminLoginError.classList.add("hidden");
+    try {
+      const res = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username: dom.adminUsername.value.trim(),
+          password: dom.adminPassword.value,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail || "Login failed");
+      if (!data.user?.is_admin) throw new Error("هذا الحساب ليس له صلاحيات مسؤول");
+      adminToken = data.token;
+      localStorage.setItem("calltranslate_admin_token", adminToken);
+      dom.adminLoginOverlay.classList.add("hidden");
+      dom.adminDashboardView.classList.remove("hidden");
+      await loadUsers();
+    } catch (err) {
+      dom.adminLoginError.textContent = err.message;
+      dom.adminLoginError.classList.remove("hidden");
+    }
+  });
+
+  async function checkAdminSession() {
+    if (!adminToken) {
+      dom.adminLoginOverlay.classList.remove("hidden");
+      dom.adminDashboardView.classList.add("hidden");
+      return;
+    }
+    try {
+      const res = await fetch("/api/auth/me", { headers: authHeaders() });
+      if (!res.ok) throw new Error("Invalid session");
+      const data = await res.json();
+      if (!data.user?.is_admin) throw new Error("Not an admin");
+      dom.adminLoginOverlay.classList.add("hidden");
+      dom.adminDashboardView.classList.remove("hidden");
+      await loadUsers();
+    } catch (_e) {
+      localStorage.removeItem("calltranslate_admin_token");
+      dom.adminLoginOverlay.classList.remove("hidden");
+      dom.adminDashboardView.classList.add("hidden");
+    }
   }
 
   async function loadUsers() {
     try {
       const res = await fetch("/api/admin/users", { headers: authHeaders() });
       if (res.status === 401 || res.status === 403) {
-        alert("يجب تسجيل الدخول كمسؤول (Admin)");
-        location.href = "/app";
+        dom.adminLoginOverlay.classList.remove("hidden");
+        dom.adminDashboardView.classList.add("hidden");
         return;
       }
       const data = await res.json();
@@ -45,7 +94,7 @@
 
       renderTable(data.users);
     } catch (err) {
-      alert("خطأ أثناء جلب البيانات: " + err.message);
+      showToast("خطأ أثناء جلب البيانات: " + err.message);
     }
   }
 
@@ -63,13 +112,13 @@
 
       tr.innerHTML = `
         <td>
-          <strong>${u.display_name}</strong> ${u.is_admin ? '<span class="lang-badge" style="background:#5288c1;color:#fff;">ADMIN</span>' : ''}<br>
-          <small style="color:var(--text-secondary);">@${u.username}</small>
+          <strong style="color:#fff;">${u.display_name}</strong> ${u.is_admin ? '<span class="lang-pill" style="background:#5288c1;color:#fff;margin-right:6px;">ADMIN</span>' : ''}<br>
+          <small style="color:var(--tg-text-secondary);direction:ltr;display:inline-block;">@${u.username}</small>
         </td>
-        <td><span class="lang-badge">${u.language.toUpperCase()}</span></td>
+        <td><span class="lang-pill">${u.language.toUpperCase()}</span></td>
         <td>
           <span style="display:inline-flex;align-items:center;gap:6px;">
-            <span class="online-dot ${u.is_online ? "online" : ""}" style="position:static;display:inline-block;"></span>
+            <span class="dot-online ${u.is_online ? "online" : ""}" style="position:static;display:inline-block;"></span>
             ${u.is_online ? "متصل" : "غير متصل"}
           </span>
         </td>
@@ -89,7 +138,6 @@
       dom.usersTableBody.appendChild(tr);
     });
 
-    // Event listeners
     document.querySelectorAll(".model-select").forEach((sel) => {
       sel.addEventListener("change", async (e) => {
         const userId = e.target.dataset.userId;
@@ -154,9 +202,9 @@
   }
 
   dom.adminLogout.addEventListener("click", () => {
-    localStorage.removeItem("calltranslate_usr_token");
-    location.href = "/app";
+    localStorage.removeItem("calltranslate_admin_token");
+    checkAdminSession();
   });
 
-  loadUsers();
+  checkAdminSession();
 })();

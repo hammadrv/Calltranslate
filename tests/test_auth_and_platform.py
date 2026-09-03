@@ -1,3 +1,4 @@
+import os
 import pytest
 from fastapi.testclient import TestClient
 import app
@@ -7,15 +8,16 @@ ORIGIN = "http://testserver"
 
 
 @pytest.fixture(autouse=True)
-def clean_db():
+def clean_db(tmp_path):
+    test_db = str(tmp_path / "test_isolated.db")
+    os.environ["CALLTRANSLATE_DB_PATH"] = test_db
     db.init_db()
-    conn = db.get_connection()
-    with conn:
-        conn.execute("DELETE FROM friend_requests")
-        conn.execute("DELETE FROM contacts")
-        conn.execute("DELETE FROM sessions")
-        conn.execute("DELETE FROM users WHERE username != 'admin'")
-    conn.close()
+    yield
+    try:
+        if os.path.exists(test_db):
+            os.remove(test_db)
+    except OSError:
+        pass
 
 
 def test_user_registration_and_login():
@@ -191,3 +193,44 @@ def test_user_hub_websocket():
                 assert inc_msg["caller"] == "wsuser1"
                 assert "access_token" in inc_msg
                 assert inc_msg["access_token"].startswith("ct_")
+
+
+def test_chat_messaging_and_outgoing_friend_requests():
+    with TestClient(app.app, base_url=ORIGIN) as client:
+        u1 = client.post("/api/auth/register", json={"username": "chat1", "password": "password123", "language": "ar"}).json()
+        u2 = client.post("/api/auth/register", json={"username": "chat2", "password": "password123", "language": "en"}).json()
+        h1 = {"Authorization": f"Bearer {u1['token']}"}
+        h2 = {"Authorization": f"Bearer {u2['token']}"}
+
+        # chat1 sends friend request to chat2
+        req_res = client.post("/api/friend-requests", headers=h1, json={"username": "chat2"})
+        assert req_res.status_code == 200
+
+        # chat1 checks outgoing requests
+        fr1 = client.get("/api/friend-requests", headers=h1).json()
+        assert len(fr1["outgoing"]) == 1
+        assert fr1["outgoing"][0]["username"] == "chat2"
+        req_id = fr1["outgoing"][0]["request_id"]
+
+        # chat2 checks incoming requests
+        fr2 = client.get("/api/friend-requests", headers=h2).json()
+        assert len(fr2["incoming"]) == 1
+        assert fr2["incoming"][0]["username"] == "chat1"
+
+        # chat2 accepts
+        acc_res = client.post(f"/api/friend-requests/{req_id}/accept", headers=h2)
+        assert acc_res.status_code == 200
+
+        # chat1 sends chat message to chat2
+        msg_res = client.post("/api/messages/chat2", headers=h1, json={"text": "مرحبا بك"})
+        assert msg_res.status_code == 200
+        saved = msg_res.json()["message"]
+        assert saved["original_text"] == "مرحبا بك"
+        assert saved["from_lang"] == "ar"
+
+        # chat2 retrieves conversation
+        hist_res = client.get("/api/messages/chat1", headers=h2)
+        assert hist_res.status_code == 200
+        msgs = hist_res.json()["messages"]
+        assert len(msgs) == 1
+        assert msgs[0]["original_text"] == "مرحبا بك"

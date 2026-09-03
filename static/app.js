@@ -2,6 +2,7 @@
   let currentUser = null;
   let userToken = "";
   let hubSocket = null;
+  let activeChatContact = null;
   let currentIncomingCall = null;
   let activeCallSession = null;
 
@@ -9,6 +10,7 @@
   let rtcPeer = null;
   let rtcSocket = null;
   let localMediaStream = null;
+  let queuedCandidates = [];
   let geminiSocket = null;
   let geminiAudioContext = null;
   let geminiPlaybackContext = null;
@@ -40,13 +42,27 @@
     currentUserHandle: document.getElementById("currentUserHandle"),
     currentUserLangBadge: document.getElementById("currentUserLangBadge"),
     btnToggleLang: document.getElementById("btnToggleLang"),
-    btnAdminPanel: document.getElementById("btnAdminPanel"),
     btnLogout: document.getElementById("btnLogout"),
     addFriendInput: document.getElementById("addFriendInput"),
     btnAddFriend: document.getElementById("btnAddFriend"),
     friendRequestsSection: document.getElementById("friendRequestsSection"),
     friendRequestsList: document.getElementById("friendRequestsList"),
+    outgoingRequestsSection: document.getElementById("outgoingRequestsSection"),
+    outgoingRequestsList: document.getElementById("outgoingRequestsList"),
     contactsContainer: document.getElementById("contactsContainer"),
+    // Chat elements
+    chatViewOverlay: document.getElementById("chatViewOverlay"),
+    btnChatBack: document.getElementById("btnChatBack"),
+    chatContactAvatar: document.getElementById("chatContactAvatar"),
+    chatContactName: document.getElementById("chatContactName"),
+    chatContactStatus: document.getElementById("chatContactStatus"),
+    chatContactLangBadge: document.getElementById("chatContactLangBadge"),
+    btnChatCall: document.getElementById("btnChatCall"),
+    btnChatDelete: document.getElementById("btnChatDelete"),
+    chatMessagesContainer: document.getElementById("chatMessagesContainer"),
+    chatInputForm: document.getElementById("chatInputForm"),
+    chatTextInput: document.getElementById("chatTextInput"),
+    // Call elements
     callOverlay: document.getElementById("callOverlay"),
     callTargetName: document.getElementById("callTargetName"),
     callStatusLine: document.getElementById("callStatusLine"),
@@ -189,16 +205,11 @@
   async function initUserApp() {
     dom.authBox.classList.add("hidden");
 
+    // Display username clearly with @ and name
     dom.currentUserName.textContent = currentUser.display_name || currentUser.username;
     dom.currentUserHandle.textContent = `@${currentUser.username}`;
     dom.currentUserAvatar.textContent = (currentUser.display_name || currentUser.username).charAt(0).toUpperCase();
     dom.currentUserLangBadge.textContent = currentUser.language.toUpperCase();
-
-    if (currentUser.is_admin) {
-      dom.btnAdminPanel.classList.remove("hidden");
-    } else {
-      dom.btnAdminPanel.classList.add("hidden");
-    }
 
     connectUserHub();
     await loadContacts();
@@ -229,13 +240,16 @@
       } else if (msg.type === "call_error") {
         alert(msg.message || "خطأ أثناء الاتصال");
         closeCallOverlay();
-      } else if (msg.type === "friend_request_received") {
-        loadFriendRequests();
-      } else if (msg.type === "friend_request_accepted") {
+      } else if (msg.type === "friend_request_received" || msg.type === "friend_request_accepted" || msg.type === "friend_request_cancelled") {
         loadContacts();
         loadFriendRequests();
       } else if (msg.type === "contact_removed") {
         loadContacts();
+        if (activeChatContact && activeChatContact.username === msg.by_username) {
+          closeChat();
+        }
+      } else if (msg.type === "new_chat_message") {
+        handleIncomingChatMessage(msg);
       }
     };
 
@@ -261,7 +275,7 @@
     if (contacts.length === 0) {
       dom.contactsContainer.innerHTML = `
         <div class="empty-contacts-view">
-          <p>لا يوجد أصدقاء بعد.<br>أضف مستخدم بالـ username أعلاه لتبدأ المكالمات المترجمة!</p>
+          <p>لا يوجد أصدقاء بعد.<br>أضف صديق بالـ @username أعلاه لبدء المحادثات والمكالمات المترجمة!</p>
         </div>
       `;
       return;
@@ -281,52 +295,21 @@
             <span class="lang-pill">${c.language.toUpperCase()}</span>
           </div>
           <div class="contact-sub-line">
-            @${c.username} • <span style="color:${c.is_online ? 'var(--tg-green)' : 'var(--tg-text-secondary)'}">${c.is_online ? 'متصل' : 'غير متصل'}</span>
+            <span dir="ltr">@${c.username}</span> • <span style="color:${c.is_online ? 'var(--tg-green)' : 'var(--tg-text-secondary)'}">${c.is_online ? 'متصل' : 'غير متصل'}</span>
           </div>
-        </div>
-        <div class="contact-actions">
-          <button class="btn-contact-del" title="حذف الصديق">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="3 6 5 6 21 6"/>
-              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-              <line x1="10" y1="11" x2="10" y2="17"/>
-              <line x1="14" y1="11" x2="14" y2="17"/>
-            </svg>
-          </button>
-          <button class="btn-contact-call" title="بدء مكالمة مترجمة">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-            </svg>
-          </button>
         </div>
       `;
 
-      // Call button click
-      row.querySelector(".btn-contact-call").addEventListener("click", (e) => {
-        e.stopPropagation();
-        initiateCall(c);
-      });
-
-      // Delete button click
-      row.querySelector(".btn-contact-del").addEventListener("click", async (e) => {
-        e.stopPropagation();
-        if (!confirm(`هل أنت متأكد من حذف ${c.display_name} (@${c.username}) من قائمة الأصدقاء؟`)) return;
-        try {
-          const res = await fetch(`/api/contacts/${c.username}`, {
-            method: "DELETE",
-            headers: authHeaders(),
-          });
-          if (res.ok) {
-            await loadContacts();
-          }
-        } catch (_e) {}
+      // Click on contact opens Telegram chat / profile
+      row.addEventListener("click", () => {
+        openChat(c);
       });
 
       dom.contactsContainer.appendChild(row);
     });
   }
 
-  // --- Friend Requests ---
+  // --- Friend Requests (Incoming & Outgoing Pending) ---
   dom.btnAddFriend.addEventListener("click", async () => {
     let username = dom.addFriendInput.value.trim();
     if (username.startsWith("@")) username = username.substring(1);
@@ -354,65 +337,218 @@
       const res = await fetch("/api/friend-requests", { headers: authHeaders() });
       if (!res.ok) return;
       const data = await res.json();
-      const requests = data.requests || [];
-      if (requests.length === 0) {
+      const incoming = data.incoming || [];
+      const outgoing = data.outgoing || [];
+
+      // Render Incoming
+      if (incoming.length === 0) {
         dom.friendRequestsSection.classList.add("hidden");
-        return;
+      } else {
+        dom.friendRequestsSection.classList.remove("hidden");
+        dom.friendRequestsList.innerHTML = "";
+        incoming.forEach((req) => {
+          const item = document.createElement("div");
+          item.className = "request-item";
+          item.innerHTML = `
+            <div class="request-info">
+              <div class="user-avatar-sm" style="width:30px;height:30px;font-size:0.8rem;">
+                ${(req.display_name || req.username).charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <span style="font-weight:600;font-size:0.85rem;">${req.display_name}</span>
+                <span style="color:var(--tg-text-secondary);font-size:0.75rem;" dir="ltr">(@${req.username})</span>
+              </div>
+            </div>
+            <div class="request-actions">
+              <button class="btn-req-accept" data-req-id="${req.request_id}">قبول</button>
+              <button class="btn-req-reject" data-req-id="${req.request_id}">رفض</button>
+            </div>
+          `;
+
+          item.querySelector(".btn-req-accept").addEventListener("click", async () => {
+            try {
+              const r = await fetch(`/api/friend-requests/${req.request_id}/accept`, {
+                method: "POST",
+                headers: authHeaders(),
+              });
+              if (r.ok) {
+                await loadContacts();
+                await loadFriendRequests();
+              }
+            } catch (_e) {}
+          });
+
+          item.querySelector(".btn-req-reject").addEventListener("click", async () => {
+            try {
+              const r = await fetch(`/api/friend-requests/${req.request_id}/reject`, {
+                method: "POST",
+                headers: authHeaders(),
+              });
+              if (r.ok) await loadFriendRequests();
+            } catch (_e) {}
+          });
+
+          dom.friendRequestsList.appendChild(item);
+        });
       }
 
-      dom.friendRequestsSection.classList.remove("hidden");
-      dom.friendRequestsList.innerHTML = "";
-
-      requests.forEach((req) => {
-        const item = document.createElement("div");
-        item.className = "request-item";
-        item.innerHTML = `
-          <div class="request-info">
-            <div class="user-avatar-sm" style="width:30px;height:30px;font-size:0.8rem;">
-              ${(req.display_name || req.username).charAt(0).toUpperCase()}
+      // Render Outgoing (Pending Approval)
+      if (outgoing.length === 0) {
+        dom.outgoingRequestsSection.classList.add("hidden");
+      } else {
+        dom.outgoingRequestsSection.classList.remove("hidden");
+        dom.outgoingRequestsList.innerHTML = "";
+        outgoing.forEach((req) => {
+          const item = document.createElement("div");
+          item.className = "request-item";
+          item.innerHTML = `
+            <div class="request-info">
+              <div class="user-avatar-sm" style="width:30px;height:30px;font-size:0.8rem;background:#d97706;">
+                ${(req.display_name || req.username).charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <span style="font-weight:600;font-size:0.85rem;">${req.display_name}</span>
+                <span style="color:var(--tg-text-secondary);font-size:0.75rem;" dir="ltr">(@${req.username})</span>
+              </div>
             </div>
-            <div>
-              <span style="font-weight:600;font-size:0.85rem;">${req.display_name}</span>
-              <span style="color:var(--tg-text-secondary);font-size:0.75rem;">(@${req.username})</span>
+            <div class="request-actions">
+              <button class="btn-req-cancel" data-req-id="${req.request_id}">إلغاء الطلب</button>
             </div>
-          </div>
-          <div class="request-actions">
-            <button class="btn-req-accept" data-req-id="${req.request_id}">قبول</button>
-            <button class="btn-req-reject" data-req-id="${req.request_id}">رفض</button>
-          </div>
-        `;
+          `;
 
-        item.querySelector(".btn-req-accept").addEventListener("click", async () => {
-          try {
-            const acceptRes = await fetch(`/api/friend-requests/${req.request_id}/accept`, {
-              method: "POST",
-              headers: authHeaders(),
-            });
-            if (acceptRes.ok) {
-              await loadContacts();
-              await loadFriendRequests();
-            }
-          } catch (_e) {}
+          item.querySelector(".btn-req-cancel").addEventListener("click", async () => {
+            try {
+              const r = await fetch(`/api/friend-requests/${req.request_id}/cancel`, {
+                method: "POST",
+                headers: authHeaders(),
+              });
+              if (r.ok) await loadFriendRequests();
+            } catch (_e) {}
+          });
+
+          dom.outgoingRequestsList.appendChild(item);
         });
-
-        item.querySelector(".btn-req-reject").addEventListener("click", async () => {
-          try {
-            const rejectRes = await fetch(`/api/friend-requests/${req.request_id}/reject`, {
-              method: "POST",
-              headers: authHeaders(),
-            });
-            if (rejectRes.ok) {
-              await loadFriendRequests();
-            }
-          } catch (_e) {}
-        });
-
-        dom.friendRequestsList.appendChild(item);
-      });
+      }
     } catch (_e) {}
   }
 
-  // --- Calling Flow ---
+  // --- Telegram Chat View ---
+  async function openChat(contact) {
+    activeChatContact = contact;
+    dom.chatContactName.textContent = contact.display_name;
+    dom.chatContactAvatar.textContent = (contact.display_name || contact.username).charAt(0).toUpperCase();
+    dom.chatContactStatus.textContent = contact.is_online ? "متصل الآن (Online)" : "غير متصل";
+    dom.chatContactStatus.style.color = contact.is_online ? "var(--tg-green)" : "var(--tg-text-secondary)";
+    dom.chatContactLangBadge.textContent = contact.language.toUpperCase();
+
+    dom.chatViewOverlay.classList.remove("hidden");
+    await loadChatMessages(contact.username);
+  }
+
+  function closeChat() {
+    activeChatContact = null;
+    dom.chatViewOverlay.classList.add("hidden");
+  }
+
+  dom.btnChatBack.addEventListener("click", closeChat);
+
+  // Delete button INSIDE contact profile / chat
+  dom.btnChatDelete.addEventListener("click", async () => {
+    if (!activeChatContact) return;
+    const c = activeChatContact;
+    if (!confirm(`هل أنت متأكد من حذف ${c.display_name} (@${c.username}) من قائمة الأصدقاء؟`)) return;
+    try {
+      const res = await fetch(`/api/contacts/${c.username}`, {
+        method: "DELETE",
+        headers: authHeaders(),
+      });
+      if (res.ok) {
+        closeChat();
+        await loadContacts();
+      }
+    } catch (_e) {}
+  });
+
+  // Call button in chat header
+  dom.btnChatCall.addEventListener("click", () => {
+    if (activeChatContact) initiateCall(activeChatContact);
+  });
+
+  async function loadChatMessages(username) {
+    dom.chatMessagesContainer.innerHTML = "";
+    try {
+      const res = await fetch(`/api/messages/${username}`, { headers: authHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      (data.messages || []).forEach(appendMessageBubble);
+      scrollChatToBottom();
+    } catch (_e) {}
+  }
+
+  function appendMessageBubble(msg) {
+    const isOut = msg.from_user_id === currentUser.id;
+    const bubble = document.createElement("div");
+    bubble.className = `msg-bubble ${isOut ? "outgoing" : "incoming"}`;
+
+    const timeStr = msg.created_at
+      ? new Date(msg.created_at * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+      : "";
+
+    let translationHtml = "";
+    if (msg.translated_text && msg.translated_text !== msg.original_text) {
+      translationHtml = `<div class="msg-translation-pill">🌐 ${msg.translated_text}</div>`;
+    }
+
+    bubble.innerHTML = `
+      <div class="msg-text-original">${escapeHtml(msg.original_text)}</div>
+      ${translationHtml}
+      <div class="msg-time">${timeStr}</div>
+    `;
+
+    dom.chatMessagesContainer.appendChild(bubble);
+  }
+
+  function scrollChatToBottom() {
+    dom.chatMessagesContainer.scrollTop = dom.chatMessagesContainer.scrollHeight;
+  }
+
+  function escapeHtml(str) {
+    const div = document.createElement("div");
+    div.textContent = str;
+    return div.innerHTML;
+  }
+
+  dom.chatInputForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const text = dom.chatTextInput.value.trim();
+    if (!text || !activeChatContact) return;
+    dom.chatTextInput.value = "";
+
+    try {
+      const res = await fetch(`/api/messages/${activeChatContact.username}`, {
+        method: "POST",
+        headers: authHeaders(),
+        body: JSON.stringify({ text }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data.message) {
+          appendMessageBubble(data.message);
+          scrollChatToBottom();
+        }
+      }
+    } catch (_e) {}
+  });
+
+  function handleIncomingChatMessage(msgEvent) {
+    const msg = msgEvent.message;
+    if (activeChatContact && (msg.from_user_id === activeChatContact.id || msgEvent.sender_username === activeChatContact.username)) {
+      appendMessageBubble(msg);
+      scrollChatToBottom();
+    }
+  }
+
+  // --- Calling Flow & WebRTC Engine ---
   function initiateCall(target) {
     if (!hubSocket || hubSocket.readyState !== WebSocket.OPEN) {
       alert("غير متصل بالسيرفر");
@@ -542,10 +678,11 @@
     activeCallSession = null;
   }
 
-  // --- WebRTC Peer & Gemini Translation Engine ---
+  // --- Proven WebRTC Peer & Signaling ---
   async function startCallWebRTC() {
     if (!activeCallSession) return;
-    dom.callStatusLine.textContent = "جاري طلب إذن الميكروفون...";
+    dom.callStatusLine.textContent = "جاري تفعيل الصوت والاتصال...";
+    queuedCandidates = [];
 
     try {
       localMediaStream = await navigator.mediaDevices.getUserMedia({
@@ -573,44 +710,84 @@
         startTranslation(event.track, config);
       };
 
+      rtcPeer.onconnectionstatechange = () => {
+        if (rtcPeer.connectionState === "connected") {
+          dom.callStatusLine.textContent = "المكالمة متصلة (ترجمة حية)";
+          startTimer();
+        } else if (["disconnected", "failed"].includes(rtcPeer.connectionState)) {
+          dom.callStatusLine.textContent = "انقطع الاتصال";
+        }
+      };
+
+      // CRUCIAL FIX: send "ice-candidate" with candidate object (expected by app.py)
+      rtcPeer.onicecandidate = (e) => {
+        if (e.candidate && rtcSocket && rtcSocket.readyState === WebSocket.OPEN) {
+          rtcSocket.send(JSON.stringify({
+            type: "ice-candidate",
+            candidate: e.candidate.toJSON(),
+          }));
+        }
+      };
+
+      // Connect signaling websocket
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       const wsUrl = `${proto}//${location.host}/ws/${encodeURIComponent(activeCallSession.roomId)}/${encodeURIComponent(activeCallSession.role)}`;
       rtcSocket = new WebSocket(wsUrl, ["calltranslate", activeCallSession.accessToken]);
 
-      rtcPeer.onicecandidate = (e) => {
-        if (e.candidate && rtcSocket && rtcSocket.readyState === WebSocket.OPEN) {
-          rtcSocket.send(JSON.stringify({ type: "candidate", candidate: e.candidate.toJSON() }));
-        }
+      async function createAndSendOffer() {
+        if (!rtcPeer) return;
+        try {
+          const offer = await rtcPeer.createOffer({ offerToReceiveAudio: true });
+          await rtcPeer.setLocalDescription(offer);
+          if (rtcSocket && rtcSocket.readyState === WebSocket.OPEN) {
+            rtcSocket.send(JSON.stringify({ type: "offer", sdp: offer.sdp }));
+          }
+        } catch (_err) {}
+      }
+
+      rtcSocket.onopen = async () => {
+        // Ready to signal
       };
 
       rtcSocket.onmessage = async (e) => {
         let msg;
         try { msg = JSON.parse(e.data); } catch (_err) { return; }
 
-        if (msg.type === "offer") {
-          await rtcPeer.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+        if (msg.type === "welcome") {
+          if (msg.peer_connected && activeCallSession.isCaller) {
+            await createAndSendOffer();
+          }
+        } else if (msg.type === "peer-joined") {
+          if (activeCallSession.isCaller) {
+            await createAndSendOffer();
+          }
+        } else if (msg.type === "offer") {
+          await rtcPeer.setRemoteDescription(new RTCSessionDescription({ type: "offer", sdp: msg.sdp }));
+          for (const cand of queuedCandidates.splice(0)) {
+            try { await rtcPeer.addIceCandidate(new RTCIceCandidate(cand)); } catch (_e) {}
+          }
           const answer = await rtcPeer.createAnswer();
           await rtcPeer.setLocalDescription(answer);
-          rtcSocket.send(JSON.stringify({ type: "answer", sdp: answer }));
+          rtcSocket.send(JSON.stringify({ type: "answer", sdp: answer.sdp }));
         } else if (msg.type === "answer") {
-          await rtcPeer.setRemoteDescription(new RTCSessionDescription(msg.sdp));
-        } else if (msg.type === "candidate" && msg.candidate) {
-          try { await rtcPeer.addIceCandidate(new RTCIceCandidate(msg.candidate)); } catch (_e) {}
+          await rtcPeer.setRemoteDescription(new RTCSessionDescription({ type: "answer", sdp: msg.sdp }));
+          for (const cand of queuedCandidates.splice(0)) {
+            try { await rtcPeer.addIceCandidate(new RTCIceCandidate(cand)); } catch (_e) {}
+          }
+        } else if (msg.type === "ice-candidate" && msg.candidate) {
+          if (rtcPeer.remoteDescription) {
+            try { await rtcPeer.addIceCandidate(new RTCIceCandidate(msg.candidate)); } catch (_e) {}
+          } else {
+            queuedCandidates.push(msg.candidate);
+          }
         } else if (msg.type === "peer-left") {
           dom.callStatusLine.textContent = "أنهى الطرف الآخر المكالمة.";
           setTimeout(closeCallOverlay, 1500);
         }
       };
 
-      rtcSocket.onopen = async () => {
-        if (activeCallSession.isCaller) {
-          const offer = await rtcPeer.createOffer({ offerToReceiveAudio: true });
-          await rtcPeer.setLocalDescription(offer);
-          rtcSocket.send(JSON.stringify({ type: "offer", sdp: offer }));
-        }
-      };
     } catch (err) {
-      alert("تعذر الاتصال بالميكروفون: " + err.message);
+      alert("تعذر الوصول إلى الميكروفون: " + err.message);
       closeCallOverlay();
     }
   }
@@ -838,11 +1015,11 @@
       if (!geminiPlaybackContext || geminiPlaybackContext.state === "closed") {
         geminiPlaybackContext = new (window.AudioContext || window.webkitAudioContext)();
       }
-      if (geminiPlaybackContext.state === "suspended") void geminiPlaybackContext.resume();
+      if (geminiPlaybackContext.state === "suspended") void geminiPlaybackContext.resume().catch(() => {});
       if (!geminiAudioContext || geminiAudioContext.state === "closed") {
         geminiAudioContext = new (window.AudioContext || window.webkitAudioContext)();
       }
-      if (geminiAudioContext.state === "suspended") void geminiAudioContext.resume();
+      if (geminiAudioContext.state === "suspended") void geminiAudioContext.resume().catch(() => {});
     } catch (_e) {}
   }
 

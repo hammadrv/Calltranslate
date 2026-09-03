@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Calltranslate — لوحة الإدارة (Admin)</title>
+    <title>Calltranslate — لوحة تحكم المسؤول (Admin Dashboard)</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/static/app.css">
     <style>
@@ -12,6 +12,7 @@
         display: block;
         overflow-y: auto;
         padding: 32px 24px;
+        min-height: 100vh;
       }
       .admin-wrap {
         max-width: 1100px;
@@ -22,37 +23,41 @@
         justify-content: space-between;
         align-items: center;
         margin-bottom: 24px;
+        flex-wrap: wrap;
+        gap: 16px;
       }
       .admin-title-row h1 {
         font-size: 1.6rem;
         margin-bottom: 4px;
+        color: #fff;
       }
       .stats-grid {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 16px;
         margin-bottom: 24px;
       }
       .stat-card {
-        background-color: var(--bg-sidebar);
-        border: 1px solid var(--border-color);
+        background-color: var(--tg-header-bg);
+        border: 1px solid var(--tg-border);
         border-radius: 12px;
         padding: 18px 20px;
       }
       .stat-val {
         font-size: 1.8rem;
         font-weight: 700;
-        color: var(--accent-blue);
+        color: var(--tg-accent-blue);
       }
       .stat-lbl {
-        color: var(--text-secondary);
+        color: var(--tg-text-secondary);
         font-size: 0.85rem;
+        margin-top: 4px;
       }
       .admin-table-card {
-        background-color: var(--bg-sidebar);
-        border: 1px solid var(--border-color);
+        background-color: var(--tg-header-bg);
+        border: 1px solid var(--tg-border);
         border-radius: 14px;
-        overflow: hidden;
+        overflow-x: auto;
       }
       table {
         width: 100%;
@@ -63,8 +68,8 @@
         background-color: rgba(255, 255, 255, 0.04);
         padding: 14px 18px;
         font-size: 0.85rem;
-        color: var(--text-secondary);
-        border-bottom: 1px solid var(--border-color);
+        color: var(--tg-text-secondary);
+        border-bottom: 1px solid var(--tg-border);
       }
       td {
         padding: 14px 18px;
@@ -76,16 +81,16 @@
         background-color: rgba(255, 255, 255, 0.02);
       }
       .model-select {
-        background-color: var(--bg-main);
+        background-color: var(--tg-app-bg);
         color: #fff;
-        border: 1px solid var(--border-color);
+        border: 1px solid var(--tg-border);
         padding: 8px 12px;
         border-radius: 8px;
         outline: none;
         cursor: pointer;
       }
       .model-select:focus {
-        border-color: var(--accent-blue);
+        border-color: var(--tg-accent-blue);
       }
       .action-btns {
         display: flex;
@@ -99,14 +104,14 @@
         cursor: pointer;
         border: none;
       }
-      .btn-danger { background-color: var(--accent-red); color: white; }
-      .btn-secondary { background-color: var(--bg-card); color: var(--text-primary); }
-      .btn-secondary:hover { background-color: var(--bg-hover); }
+      .btn-danger { background-color: var(--tg-red); color: white; }
+      .btn-secondary { background-color: var(--tg-card-bg); color: var(--tg-text-primary); }
+      .btn-secondary:hover { background-color: var(--tg-item-hover); }
       .notification {
         position: fixed;
         bottom: 24px;
         left: 24px;
-        background-color: var(--accent-green);
+        background-color: var(--tg-green);
         color: white;
         padding: 12px 24px;
         border-radius: 8px;
@@ -114,18 +119,60 @@
         box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
         z-index: 1000;
       }
+      /* Admin Login Box */
+      .admin-login-overlay {
+        position: fixed;
+        top: 0; left: 0; right: 0; bottom: 0;
+        background-color: #0c1219;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 5000;
+      }
+      .admin-login-card {
+        background-color: #17212b;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 20px;
+        padding: 36px 32px;
+        width: 100%;
+        max-width: 380px;
+        box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+      }
     </style>
   </head>
   <body>
-    <div class="admin-wrap">
+    <!-- Admin Login Modal if not authenticated as admin -->
+    <div id="adminLoginOverlay" class="admin-login-overlay hidden">
+      <div class="admin-login-card">
+        <div style="text-align: center; margin-bottom: 24px;">
+          <h2 style="color: #fff; font-size: 1.4rem;">لوحة المسؤول (Admin Login)</h2>
+          <p style="color: var(--tg-text-secondary); font-size: 0.85rem; margin-top: 4px;">تسجيل دخول المسؤول المستقل</p>
+        </div>
+        <form id="adminLoginForm" class="auth-form-body">
+          <div class="input-group">
+            <label for="adminUsername">اسم مستخدم المسؤول</label>
+            <input type="text" id="adminUsername" class="input-field" required autocomplete="username" value="admin">
+          </div>
+          <div class="input-group">
+            <label for="adminPassword">كلمة المرور</label>
+            <input type="password" id="adminPassword" class="input-field" required autocomplete="current-password">
+          </div>
+          <div id="adminLoginError" class="form-error-msg hidden"></div>
+          <button type="submit" class="btn-auth-submit">دخول لوحة التحكم</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Admin Dashboard View -->
+    <div id="adminDashboardView" class="admin-wrap hidden">
       <header class="admin-header">
         <div class="admin-title-row">
           <h1>لوحة تحكم المسؤول (Admin Dashboard)</h1>
-          <p style="color: var(--text-secondary);">إدارة حسابات المستخدمين والنماذج المخصصة للترجمة</p>
+          <p style="color: var(--tg-text-secondary);">إدارة حسابات المستخدمين والنماذج المخصصة للترجمة</p>
         </div>
-        <div style="display: flex; gap: 12px;">
-          <a href="/app" class="btn-primary" style="text-decoration: none; padding: 10px 20px; font-size: 0.9rem;">العودة للتطبيق (App)</a>
-          <button id="adminLogout" class="btn-sm btn-secondary" style="padding: 10px 16px;">خروج</button>
+        <div style="display: flex; gap: 12px; align-items: center;">
+          <a href="/docs-app" class="btn-sm btn-secondary" style="text-decoration: none; padding: 10px 16px; font-size: 0.85rem;">📚 التوثيق البرمجي (Docs)</a>
+          <button id="adminLogout" class="btn-sm btn-danger" style="padding: 10px 16px;">تسجيل الخروج</button>
         </div>
       </header>
 
