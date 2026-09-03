@@ -9,11 +9,11 @@
     <link rel="stylesheet" href="/static/app.css">
   </head>
   <body>
-    <div class="mobile-device-wrapper">
-      <!-- Phone Mockup Status Bar -->
-      <div class="mobile-status-bar">
+    <div class="telegram-device-shell">
+      <!-- iOS / Android Style Status Bar -->
+      <div class="tg-status-bar">
         <span id="statusBarClock">9:41</span>
-        <div class="status-bar-icons">
+        <div class="tg-status-icons">
           <span>5G</span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <path d="M5 12.55a11 11 0 0 1 14.08 0M1.42 9a16 16 0 0 1 21.16 0M8.53 16.11a6 6 0 0 1 6.95 0M12 20h.01"/>
@@ -26,131 +26,136 @@
         </div>
       </div>
 
-      <!-- App Header -->
-      <header class="app-header">
-        <div class="app-user-badge">
-          <div id="currentUserAvatar" class="user-avatar-sm">U</div>
-          <div class="user-info-text">
-            <h3 id="currentUserName">المستخدم</h3>
-            <div class="user-handle-row">
-              <span class="user-handle-prefix">حسابك:</span>
-              <span id="currentUserHandle" dir="ltr" class="user-handle-tag">@user</span>
-            </div>
-          </div>
-        </div>
-        <div class="header-buttons">
-          <button id="btnToggleLang" class="icon-btn" title="تبديل لغة الترجمة">
-            <span id="currentUserLangBadge" class="lang-pill">AR</span>
-          </button>
-          <button id="btnLogout" class="icon-btn" title="تسجيل الخروج">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
-              <polyline points="16 17 21 12 16 7"/>
-              <line x1="21" y1="12" x2="9" y2="12"/>
+      <!-- Telegram Header -->
+      <header class="tg-main-header">
+        <div class="tg-header-right">
+          <button id="btnOpenDrawer" class="tg-icon-btn" title="القائمة الرئيسية">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+              <line x1="3" y1="12" x2="21" y2="12"/>
+              <line x1="3" y1="6" x2="21" y2="6"/>
+              <line x1="3" y1="18" x2="21" y2="18"/>
             </svg>
           </button>
+          <span class="tg-header-title">Telegram</span>
+        </div>
+
+        <div class="tg-header-left">
+          <!-- Clear prominent user badge -->
+          <div id="btnHeaderProfile" class="tg-user-pill-tag" title="حسابك الحالي">
+            <span style="opacity:0.75;">حسابك:</span>
+            <strong id="currentUserHandle" dir="ltr">@user</strong>
+            <span id="currentUserLangBadge" class="tg-lang-chip" style="margin-right:2px;padding:1px 5px;">AR</span>
+          </div>
         </div>
       </header>
 
-      <!-- Search / Add Friend Bar -->
-      <section class="search-add-box">
-        <div class="search-input-wrap">
-          <input 
-            type="search" 
-            id="addFriendInput" 
-            name="friend_search_query_no_autofill" 
-            placeholder="أضف صديق بالـ @username..." 
-            autocomplete="off" 
-            autocorrect="off" 
-            autocapitalize="off" 
-            spellcheck="false" 
-            data-lpignore="true" 
-            data-1p-ignore="true"
-          >
-          <button id="btnAddFriend" class="btn-add-friend">إضافة</button>
-        </div>
-      </section>
+      <!-- Telegram Segment Tabs (Chats / Requests) -->
+      <nav class="tg-tabs-nav">
+        <button id="tabChats" class="tg-tab-item active">
+          <span>المحادثات</span>
+        </button>
+        <button id="tabRequests" class="tg-tab-item">
+          <span>الطلبات</span>
+          <span id="requestsCountBadge" class="tg-tab-badge badge-orange hidden">0</span>
+        </button>
+      </nav>
 
-      <!-- Incoming Friend Requests -->
-      <section id="friendRequestsSection" class="friend-requests-section hidden">
-        <div class="friend-requests-title">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <!-- Tab 1: Chats Feed -->
+      <main id="viewChatsFeed" class="tg-chats-feed">
+        <div id="contactsContainer"></div>
+
+        <!-- Floating Action Button (Add Contact) -->
+        <button id="btnOpenAddFriend" class="tg-fab-button" title="إضافة مستخدم">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3">
             <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/>
             <circle cx="9" cy="7" r="4"/>
             <line x1="19" y1="8" x2="19" y2="14"/>
             <line x1="22" y1="11" x2="16" y2="11"/>
           </svg>
-          <span>طلبات الصداقة الواردة</span>
-        </div>
-        <div id="friendRequestsList"></div>
-      </section>
-
-      <!-- Outgoing Friend Requests (Pending Approval) -->
-      <section id="outgoingRequestsSection" class="friend-requests-section hidden" style="background: rgba(245, 158, 11, 0.1); border-color: rgba(245, 158, 11, 0.25);">
-        <div class="friend-requests-title" style="color: #f59e0b;">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <circle cx="12" cy="12" r="10"/>
-            <polyline points="12 6 12 12 16 14"/>
-          </svg>
-          <span>طلبات الصداقة الصادرة (بانتظار الموافقة)</span>
-        </div>
-        <div id="outgoingRequestsList"></div>
-      </section>
-
-      <!-- Contacts List Scroll View -->
-      <main class="contacts-scroll">
-        <div id="contactsContainer"></div>
+        </button>
       </main>
 
-      <!-- Telegram Chat & Profile View Overlay -->
-      <div id="chatViewOverlay" class="chat-screen-overlay hidden">
-        <header class="chat-header">
-          <div class="chat-header-user">
-            <button id="btnChatBack" class="btn-chat-back" title="رجوع">
+      <!-- Tab 2: Friend Requests Feed -->
+      <main id="viewRequestsFeed" class="tg-chats-feed hidden">
+        <div class="tg-requests-feed">
+          <!-- Incoming Requests -->
+          <div id="incomingSectionWrap">
+            <div class="tg-section-headline">طلبات الصداقة الواردة</div>
+            <div id="incomingRequestsList" style="display:flex; flex-direction:column; gap:8px;"></div>
+            <p id="emptyIncomingText" style="color:var(--tg-text-secondary); font-size:0.85rem; padding:10px 0;">لا توجد طلبات واردة حالياً.</p>
+          </div>
+
+          <!-- Outgoing Pending Requests -->
+          <div id="outgoingSectionWrap" style="margin-top:12px;">
+            <div class="tg-section-headline" style="color:var(--tg-orange);">طلبات صادرة (بانتظار الموافقة)</div>
+            <div id="outgoingRequestsList" style="display:flex; flex-direction:column; gap:8px;"></div>
+            <p id="emptyOutgoingText" style="color:var(--tg-text-secondary); font-size:0.85rem; padding:10px 0;">لا توجد طلبات معلقة.</p>
+          </div>
+        </div>
+      </main>
+
+      <!-- ====================================================================
+           Telegram Chat Interior View Overlay
+           ==================================================================== -->
+      <div id="chatViewOverlay" class="tg-chat-viewport hidden">
+        <header class="tg-chat-appbar">
+          <div class="tg-chat-target-profile" id="chatTargetProfileHeader">
+            <button id="btnChatBack" class="tg-icon-btn" title="رجوع">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <polyline points="9 18 15 12 9 6"/>
               </svg>
             </button>
-            <div id="chatContactAvatar" class="user-avatar-sm" style="width:34px;height:34px;font-size:0.9rem;">C</div>
-            <div class="chat-header-meta">
-              <h4 id="chatContactName">Contact</h4>
-              <p id="chatContactStatus">Online</p>
+            <div id="chatContactAvatar" class="tg-avatar" style="width:40px;height:40px;font-size:1.05rem;">C</div>
+            <div class="tg-chat-meta">
+              <h4 id="chatContactName">Contact Name</h4>
+              <p id="chatContactStatus">متصل الآن</p>
             </div>
           </div>
-          <div class="chat-header-actions">
-            <span id="chatContactLangBadge" class="lang-pill">EN</span>
+
+          <div class="tg-chat-appbar-actions">
             <!-- Green Call Button -->
-            <button id="btnChatCall" class="btn-header-call" title="بدء مكالمة صوتية مترجمة">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <button id="btnChatCall" class="tg-call-btn-circle" title="مكالمة هاتفية مترجمة">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
                 <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
               </svg>
             </button>
-            <!-- Delete Contact inside Profile -->
-            <button id="btnChatDelete" class="btn-header-del" title="حذف جهة الاتصال">
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <polyline points="3 6 5 6 21 6"/>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
-                <line x1="10" y1="11" x2="10" y2="17"/>
-                <line x1="14" y1="11" x2="14" y2="17"/>
+            <!-- 3 Dots Dropdown Menu -->
+            <button id="btnChatMenu" class="tg-icon-btn" title="خيارات">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <circle cx="12" cy="5" r="2"/>
+                <circle cx="12" cy="12" r="2"/>
+                <circle cx="12" cy="19" r="2"/>
               </svg>
             </button>
           </div>
         </header>
 
+        <!-- Dropdown Menu for Chat -->
+        <div id="chatKebabDropdown" class="tg-dropdown-menu hidden">
+          <button id="btnChatDelete" class="tg-dropdown-item danger">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+            </svg>
+            <span>حذف جهة الاتصال</span>
+          </button>
+        </div>
+
         <!-- Messages scroll container -->
-        <div id="chatMessagesContainer" class="chat-messages-scroll"></div>
+        <div id="chatMessagesContainer" class="tg-messages-scroll"></div>
 
         <!-- Chat Input Bar -->
-        <form id="chatInputForm" class="chat-input-bar">
+        <form id="chatInputForm" class="tg-input-bar-wrap">
           <input 
             type="text" 
             id="chatTextInput" 
+            class="tg-message-input-capsule" 
             placeholder="اكتب رسالة مترجمة..." 
             autocomplete="off" 
             required
           >
-          <button type="submit" class="btn-send-msg" title="إرسال">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button type="submit" class="tg-btn-send" title="إرسال">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
               <line x1="22" y1="2" x2="11" y2="13"/>
               <polygon points="22 2 15 22 11 13 2 9 22 2"/>
             </svg>
@@ -158,26 +163,67 @@
         </form>
       </div>
 
-      <!-- In-Call Fullscreen Overlay -->
-      <div id="callOverlay" class="call-fullscreen-overlay hidden">
-        <div class="call-header-info">
-          <h2 id="callTargetName" class="call-target-name">Contact</h2>
-          <p id="callStatusLine" class="call-state-text">جاري الاتصال...</p>
-          <div id="callTimer" class="call-timer-badge">00:00</div>
+      <!-- ====================================================================
+           Add Friend Bottom Sheet Modal
+           ==================================================================== -->
+      <div id="addFriendBackdrop" class="tg-bottom-sheet-backdrop hidden"></div>
+      <div id="addFriendSheet" class="tg-modal-bottom-sheet hidden">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+          <h3 style="color:#fff; font-size:1.15rem; font-weight:700;">إضافة صديق جديد</h3>
+          <button id="btnCloseAddFriend" class="tg-icon-btn" style="padding:4px;">✕</button>
+        </div>
+        <p style="color:var(--tg-text-secondary); font-size:0.85rem; margin-bottom:14px;">
+          أدخل اسم المستخدم للطرف الآخر (Username) لإرسال طلب صداقة فوري:
+        </p>
+        <div style="display:flex; gap:8px;">
+          <input 
+            type="search" 
+            id="addFriendInput" 
+            name="friend_search_query_no_autofill" 
+            placeholder="مثال: khalel712 أو @hammadrv" 
+            class="tg-message-input-capsule"
+            autocomplete="off" 
+            autocorrect="off" 
+            autocapitalize="off" 
+            spellcheck="false" 
+            data-lpignore="true" 
+            data-1p-ignore="true"
+          >
+          <button id="btnAddFriend" class="btn-tg-action btn-accept-req" style="padding:10px 20px; font-size:0.9rem;">
+            إرسال
+          </button>
+        </div>
+      </div>
+
+      <!-- ====================================================================
+           Telegram Fullscreen Calling Screen
+           ==================================================================== -->
+      <div id="callOverlay" class="tg-call-fullscreen hidden">
+        <div class="tg-call-top">
+          <h2 id="callTargetName" class="tg-call-name">Contact</h2>
+          <div class="tg-call-status-indicator">
+            <span class="tg-pulsing-dot"></span>
+            <span id="callStatusLine">جاري الاتصال...</span>
+          </div>
+          <div id="callTimer" class="tg-call-timer">00:00</div>
         </div>
 
-        <div class="call-center-animation">
-          <div class="pulsating-circle-wrap">
-            <div class="radar-ring"></div>
-            <div id="callOverlayAvatar" class="call-avatar-big">C</div>
+        <div class="tg-call-center">
+          <div class="tg-ripple-container">
+            <div class="tg-ripple-wave"></div>
+            <div class="tg-ripple-wave"></div>
+            <div id="callOverlayAvatar" class="tg-call-big-avatar avatar-color-1">C</div>
           </div>
-          <div class="subtitles-card">
-            <p id="callCaptionText" class="subtitles-text">الترجمة الفورية المباشرة مفعلة...</p>
+          <div class="tg-subtitles-island">
+            <div style="font-size:0.75rem; color:var(--tg-blue); font-weight:700; margin-bottom:4px;">
+              🎙️ الترجمة الصوتية الفورية (Gemini 3.5 Live)
+            </div>
+            <p id="callCaptionText" class="tg-subtitles-text">جاري تشغيل محرك الترجمة...</p>
           </div>
         </div>
 
-        <div class="call-actions-row">
-          <button id="btnCallMute" class="btn-call-circle btn-mute-toggle" title="كتم الصوت">
+        <div class="tg-call-controls">
+          <button id="btnCallMute" class="tg-call-circle-btn tg-btn-mute" title="كتم الصوت">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
               <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
@@ -185,8 +231,8 @@
               <line x1="8" y1="23" x2="16" y2="23"/>
             </svg>
           </button>
-          <button id="btnCallEnd" class="btn-call-circle btn-hangup-call" title="إنهاء المكالمة">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button id="btnCallEnd" class="tg-call-circle-btn tg-btn-hangup" title="إنهاء المكالمة">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
               <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/>
               <line x1="23" y1="1" x2="1" y2="23"/>
             </svg>
@@ -195,21 +241,21 @@
       </div>
 
       <!-- Incoming Call Sheet -->
-      <div id="incomingModal" class="incoming-call-overlay hidden">
-        <div style="text-align: center;">
-          <div id="incomingAvatar" class="call-avatar-big" style="margin: 0 auto;">C</div>
-          <h2 id="incomingCallerName" class="incoming-title">Contact</h2>
-          <p id="incomingCallerSub" class="incoming-sub">مكالمة مترجمة واردة...</p>
+      <div id="incomingModal" class="tg-incoming-overlay hidden">
+        <div style="text-align:center;">
+          <div id="incomingAvatar" class="tg-call-big-avatar avatar-color-2" style="margin:0 auto 16px;">C</div>
+          <h2 id="incomingCallerName" style="color:#fff; font-size:1.6rem; font-weight:700;">Contact</h2>
+          <p id="incomingCallerSub" style="color:var(--tg-blue); font-size:0.95rem; margin-top:4px;">مكالمة مترجمة واردة...</p>
         </div>
 
-        <div class="incoming-buttons">
-          <button id="btnAcceptCall" class="btn-inc-accept" title="قبول المكالمة">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <div style="display:flex; gap:40px;">
+          <button id="btnAcceptCall" class="tg-call-circle-btn" style="background-color:var(--tg-green); width:68px; height:68px; box-shadow:0 6px 20px rgba(79,174,106,0.5);" title="قبول">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
               <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
             </svg>
           </button>
-          <button id="btnDeclineCall" class="btn-inc-decline" title="رفض المكالمة">
-            <svg width="30" height="30" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <button id="btnDeclineCall" class="tg-call-circle-btn tg-btn-hangup" style="width:68px; height:68px;" title="رفض">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
               <line x1="18" y1="6" x2="6" y2="18"/>
               <line x1="6" y1="6" x2="18" y2="18"/>
             </svg>
@@ -217,61 +263,104 @@
         </div>
       </div>
 
-      <!-- Auth Inside Mobile Screen -->
-      <div id="authBox" class="auth-inner-box">
-        <div class="auth-header-logo">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="currentColor">
-            <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
-          </svg>
-          <h2>Telegram Translate</h2>
-          <p style="color: var(--tg-text-secondary); font-size: 0.85rem;">مكالمات ومحادثات مترجمة فورية</p>
+      <!-- ====================================================================
+           Telegram Slide-in Drawer
+           ==================================================================== -->
+      <div id="drawerBackdrop" class="tg-drawer-backdrop hidden"></div>
+      <aside id="tgDrawer" class="tg-drawer hidden">
+        <div class="tg-drawer-header">
+          <div id="drawerUserAvatar" class="tg-avatar avatar-color-1" style="width:58px;height:58px;font-size:1.4rem;">U</div>
+          <div>
+            <h3 id="drawerUserName" style="color:#fff; font-size:1.05rem; font-weight:700;">المستخدم</h3>
+            <p id="drawerUserHandle" style="color:#79b8ff; font-size:0.82rem;" dir="ltr">@user</p>
+          </div>
+        </div>
+        <div class="tg-drawer-menu-list">
+          <button id="drawerBtnLang" class="tg-drawer-item">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+            </svg>
+            <span>لغة الترجمة: <strong id="drawerLangText">العربية (AR)</strong></span>
+          </button>
+          <a href="/docs-app" class="tg-drawer-item" style="text-decoration:none;">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+              <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+            </svg>
+            <span>دليل التوثيق البرمجي (Docs)</span>
+          </a>
+          <button id="drawerBtnLogout" class="tg-drawer-item" style="color:var(--tg-red);">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            <span>تسجيل الخروج</span>
+          </button>
+        </div>
+      </aside>
+
+      <!-- ====================================================================
+           Auth Screen
+           ==================================================================== -->
+      <div id="authBox" class="tg-chat-viewport" style="background:#0e1621; z-index:500; justify-content:center; padding:32px 28px;">
+        <div style="text-align:center; margin-bottom:28px;">
+          <div style="width:68px; height:68px; border-radius:50%; background:var(--tg-blue); display:inline-flex; align-items:center; justify-content:center; margin-bottom:12px; box-shadow:0 8px 24px rgba(36,139,218,0.4);">
+            <svg width="38" height="38" viewBox="0 0 24 24" fill="white">
+              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm4.64 6.8c-.15 1.58-.8 5.42-1.13 7.19-.14.75-.42 1-.68 1.03-.58.05-1.02-.38-1.58-.75-.88-.58-1.38-.94-2.23-1.5-.99-.65-.35-1.01.22-1.59.15-.15 2.71-2.48 2.76-2.69a.2.2 0 0 0-.05-.18c-.06-.05-.14-.03-.21-.02-.09.02-1.49.95-4.22 2.79-.4.27-.76.41-1.08.4-.36-.01-1.04-.2-1.55-.37-.63-.2-1.12-.31-1.08-.66.02-.18.27-.36.74-.55 2.92-1.27 4.86-2.11 5.83-2.51 2.78-1.16 3.35-1.36 3.73-1.36.08 0 .27.02.39.12.1.08.13.19.14.27-.01.06.01.24 0 .38z"/>
+            </svg>
+          </div>
+          <h2 style="font-size:1.4rem; color:#fff;">Telegram Translate</h2>
+          <p style="color:var(--tg-text-secondary); font-size:0.85rem; margin-top:4px;">مكالمات ومحادثات مترجمة فورية</p>
         </div>
 
-        <div class="auth-tabs-row">
-          <button id="tabLogin" class="auth-tab-btn active">تسجيل الدخول</button>
-          <button id="tabRegister" class="auth-tab-btn">حساب جديد</button>
+        <div style="display:flex; border-bottom:1px solid var(--tg-border); margin-bottom:20px;">
+          <button id="tabLogin" class="tg-tab-item active" style="padding:10px;">تسجيل الدخول</button>
+          <button id="tabRegister" class="tg-tab-item" style="padding:10px;">حساب جديد</button>
         </div>
 
-        <form id="loginForm" class="auth-form-body">
-          <div class="input-group">
-            <label for="loginUsername">اسم المستخدم (Username)</label>
-            <input type="text" id="loginUsername" name="username" class="input-field" required autocomplete="username">
+        <form id="loginForm" style="display:flex; flex-direction:column; gap:14px;">
+          <div>
+            <label style="display:block; font-size:0.8rem; color:var(--tg-text-secondary); margin-bottom:4px;">اسم المستخدم (Username)</label>
+            <input type="text" id="loginUsername" name="username" class="tg-message-input-capsule" style="width:100%; border-radius:12px;" required autocomplete="username">
           </div>
-          <div class="input-group">
-            <label for="loginPassword">كلمة المرور (Password)</label>
-            <input type="password" id="loginPassword" name="password" class="input-field" required autocomplete="current-password">
+          <div>
+            <label style="display:block; font-size:0.8rem; color:var(--tg-text-secondary); margin-bottom:4px;">كلمة المرور (Password)</label>
+            <input type="password" id="loginPassword" name="password" class="tg-message-input-capsule" style="width:100%; border-radius:12px;" required autocomplete="current-password">
           </div>
-          <div id="loginError" class="form-error-msg hidden"></div>
-          <button type="submit" class="btn-auth-submit">دخول</button>
+          <div id="loginError" style="color:var(--tg-red); font-size:0.8rem; text-align:center;" class="hidden"></div>
+          <button type="submit" class="btn-tg-action btn-accept-req" style="background-color:var(--tg-blue); padding:13px; border-radius:12px; font-size:0.95rem; margin-top:8px;">دخول</button>
         </form>
 
-        <form id="registerForm" class="auth-form-body hidden">
-          <div class="input-group">
-            <label for="regUsername">اسم المستخدم الجديد (Username)</label>
-            <input type="text" id="regUsername" name="username" class="input-field" required minlength="3">
+        <form id="registerForm" style="display:flex; flex-direction:column; gap:14px;" class="hidden">
+          <div>
+            <label style="display:block; font-size:0.8rem; color:var(--tg-text-secondary); margin-bottom:4px;">اسم المستخدم الجديد (Username)</label>
+            <input type="text" id="regUsername" name="username" class="tg-message-input-capsule" style="width:100%; border-radius:12px;" required minlength="3">
           </div>
-          <div class="input-group">
-            <label for="regDisplayName">الاسم الظاهر (Display Name)</label>
-            <input type="text" id="regDisplayName" name="display_name" class="input-field">
+          <div>
+            <label style="display:block; font-size:0.8rem; color:var(--tg-text-secondary); margin-bottom:4px;">الاسم الظاهر (Display Name)</label>
+            <input type="text" id="regDisplayName" name="display_name" class="tg-message-input-capsule" style="width:100%; border-radius:12px;">
           </div>
-          <div class="input-group">
-            <label for="regPassword">كلمة المرور (Password)</label>
-            <input type="password" id="regPassword" name="password" class="input-field" required minlength="6">
+          <div>
+            <label style="display:block; font-size:0.8rem; color:var(--tg-text-secondary); margin-bottom:4px;">كلمة المرور (Password)</label>
+            <input type="password" id="regPassword" name="password" class="tg-message-input-capsule" style="width:100%; border-radius:12px;" required minlength="6">
           </div>
-          <div class="input-group">
-            <label for="regLanguage">لغتك الأساسية</label>
-            <select id="regLanguage" class="input-field">
+          <div>
+            <label style="display:block; font-size:0.8rem; color:var(--tg-text-secondary); margin-bottom:4px;">لغتك الأساسية</label>
+            <select id="regLanguage" class="tg-message-input-capsule" style="width:100%; border-radius:12px;">
               <option value="ar">العربية (Arabic)</option>
               <option value="en">English (الإنجليزية)</option>
             </select>
           </div>
-          <div id="regError" class="form-error-msg hidden"></div>
-          <button type="submit" class="btn-auth-submit">إنشاء الحساب</button>
+          <div id="regError" style="color:var(--tg-red); font-size:0.8rem; text-align:center;" class="hidden"></div>
+          <button type="submit" class="btn-tg-action btn-accept-req" style="background-color:var(--tg-blue); padding:13px; border-radius:12px; font-size:0.95rem; margin-top:8px;">إنشاء الحساب</button>
         </form>
       </div>
     </div>
 
-    <!-- Hidden audio elements -->
+    <!-- Audio Elements -->
     <audio id="appTranslatedAudio" autoplay playsinline></audio>
     <audio id="appAudioPuller" muted playsinline hidden></audio>
 

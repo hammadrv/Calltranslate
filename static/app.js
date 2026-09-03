@@ -37,32 +37,49 @@
     regPassword: document.getElementById("regPassword"),
     regLanguage: document.getElementById("regLanguage"),
     regError: document.getElementById("regError"),
-    currentUserAvatar: document.getElementById("currentUserAvatar"),
-    currentUserName: document.getElementById("currentUserName"),
     currentUserHandle: document.getElementById("currentUserHandle"),
     currentUserLangBadge: document.getElementById("currentUserLangBadge"),
-    btnToggleLang: document.getElementById("btnToggleLang"),
-    btnLogout: document.getElementById("btnLogout"),
+    btnOpenDrawer: document.getElementById("btnOpenDrawer"),
+    drawerBackdrop: document.getElementById("drawerBackdrop"),
+    tgDrawer: document.getElementById("tgDrawer"),
+    drawerUserAvatar: document.getElementById("drawerUserAvatar"),
+    drawerUserName: document.getElementById("drawerUserName"),
+    drawerUserHandle: document.getElementById("drawerUserHandle"),
+    drawerBtnLang: document.getElementById("drawerBtnLang"),
+    drawerLangText: document.getElementById("drawerLangText"),
+    drawerBtnLogout: document.getElementById("drawerBtnLogout"),
+    // Tabs & Feeds
+    tabChats: document.getElementById("tabChats"),
+    tabRequests: document.getElementById("tabRequests"),
+    requestsCountBadge: document.getElementById("requestsCountBadge"),
+    viewChatsFeed: document.getElementById("viewChatsFeed"),
+    viewRequestsFeed: document.getElementById("viewRequestsFeed"),
+    contactsContainer: document.getElementById("contactsContainer"),
+    incomingRequestsList: document.getElementById("incomingRequestsList"),
+    emptyIncomingText: document.getElementById("emptyIncomingText"),
+    outgoingRequestsList: document.getElementById("outgoingRequestsList"),
+    emptyOutgoingText: document.getElementById("emptyOutgoingText"),
+    // FAB & Add Friend Modal
+    btnOpenAddFriend: document.getElementById("btnOpenAddFriend"),
+    addFriendBackdrop: document.getElementById("addFriendBackdrop"),
+    addFriendSheet: document.getElementById("addFriendSheet"),
+    btnCloseAddFriend: document.getElementById("btnCloseAddFriend"),
     addFriendInput: document.getElementById("addFriendInput"),
     btnAddFriend: document.getElementById("btnAddFriend"),
-    friendRequestsSection: document.getElementById("friendRequestsSection"),
-    friendRequestsList: document.getElementById("friendRequestsList"),
-    outgoingRequestsSection: document.getElementById("outgoingRequestsSection"),
-    outgoingRequestsList: document.getElementById("outgoingRequestsList"),
-    contactsContainer: document.getElementById("contactsContainer"),
-    // Chat elements
+    // Chat Elements
     chatViewOverlay: document.getElementById("chatViewOverlay"),
     btnChatBack: document.getElementById("btnChatBack"),
     chatContactAvatar: document.getElementById("chatContactAvatar"),
     chatContactName: document.getElementById("chatContactName"),
     chatContactStatus: document.getElementById("chatContactStatus"),
-    chatContactLangBadge: document.getElementById("chatContactLangBadge"),
     btnChatCall: document.getElementById("btnChatCall"),
+    btnChatMenu: document.getElementById("btnChatMenu"),
+    chatKebabDropdown: document.getElementById("chatKebabDropdown"),
     btnChatDelete: document.getElementById("btnChatDelete"),
     chatMessagesContainer: document.getElementById("chatMessagesContainer"),
     chatInputForm: document.getElementById("chatInputForm"),
     chatTextInput: document.getElementById("chatTextInput"),
-    // Call elements
+    // Calling Elements
     callOverlay: document.getElementById("callOverlay"),
     callTargetName: document.getElementById("callTargetName"),
     callStatusLine: document.getElementById("callStatusLine"),
@@ -81,13 +98,18 @@
     appAudioPuller: document.getElementById("appAudioPuller"),
   };
 
-  // Clock in status bar
+  function getAvatarColorClass(str) {
+    if (!str) return "avatar-color-0";
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) hash = (hash + str.charCodeAt(i)) % 5;
+    return `avatar-color-${hash}`;
+  }
+
+  // Update clock
   function updateClock() {
     if (!dom.statusBarClock) return;
     const now = new Date();
-    const h = String(now.getHours()).padStart(2, "0");
-    const m = String(now.getMinutes()).padStart(2, "0");
-    dom.statusBarClock.textContent = `${h}:${m}`;
+    dom.statusBarClock.textContent = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   }
   setInterval(updateClock, 10000);
   updateClock();
@@ -96,7 +118,7 @@
     return { ...headers, Authorization: `Bearer ${userToken}`, "Content-Type": "application/json" };
   }
 
-  // --- Auth Tabs & Forms ---
+  // --- Auth Tabs & Handlers ---
   dom.tabLogin.addEventListener("click", () => {
     dom.tabLogin.classList.add("active");
     dom.tabRegister.classList.remove("active");
@@ -161,7 +183,21 @@
     }
   });
 
-  dom.btnLogout.addEventListener("click", async () => {
+  // --- Telegram Drawer Management ---
+  function openDrawer() {
+    dom.drawerBackdrop.classList.remove("hidden");
+    dom.tgDrawer.classList.remove("hidden");
+  }
+
+  function closeDrawer() {
+    dom.drawerBackdrop.classList.add("hidden");
+    dom.tgDrawer.classList.add("hidden");
+  }
+
+  dom.btnOpenDrawer.addEventListener("click", openDrawer);
+  dom.drawerBackdrop.addEventListener("click", closeDrawer);
+
+  dom.drawerBtnLogout.addEventListener("click", async () => {
     try {
       await fetch("/api/auth/logout", { method: "POST", headers: authHeaders() });
     } catch (_e) {}
@@ -169,7 +205,7 @@
     location.reload();
   });
 
-  dom.btnToggleLang.addEventListener("click", async () => {
+  dom.drawerBtnLang.addEventListener("click", async () => {
     if (!currentUser) return;
     const newLang = currentUser.language === "ar" ? "en" : "ar";
     try {
@@ -179,9 +215,47 @@
         body: JSON.stringify({ language: newLang }),
       });
       currentUser.language = newLang;
-      dom.currentUserLangBadge.textContent = newLang.toUpperCase();
+      updateUserLangUI();
     } catch (_e) {}
   });
+
+  function updateUserLangUI() {
+    const isAr = currentUser.language === "ar";
+    dom.currentUserLangBadge.textContent = isAr ? "AR" : "EN";
+    dom.drawerLangText.textContent = isAr ? "العربية (AR)" : "English (EN)";
+  }
+
+  // --- Segment Tabs Navigation (Chats vs Requests) ---
+  dom.tabChats.addEventListener("click", () => {
+    dom.tabChats.classList.add("active");
+    dom.tabRequests.classList.remove("active");
+    dom.viewChatsFeed.classList.remove("hidden");
+    dom.viewRequestsFeed.classList.add("hidden");
+  });
+
+  dom.tabRequests.addEventListener("click", () => {
+    dom.tabRequests.classList.add("active");
+    dom.tabChats.classList.remove("active");
+    dom.viewRequestsFeed.classList.remove("hidden");
+    dom.viewChatsFeed.classList.add("hidden");
+    loadFriendRequests();
+  });
+
+  // --- Add Friend Bottom Sheet Modal ---
+  function openAddFriendModal() {
+    dom.addFriendBackdrop.classList.remove("hidden");
+    dom.addFriendSheet.classList.remove("hidden");
+    setTimeout(() => dom.addFriendInput.focus(), 150);
+  }
+
+  function closeAddFriendModal() {
+    dom.addFriendBackdrop.classList.add("hidden");
+    dom.addFriendSheet.classList.add("hidden");
+  }
+
+  dom.btnOpenAddFriend.addEventListener("click", openAddFriendModal);
+  dom.btnCloseAddFriend.addEventListener("click", closeAddFriendModal);
+  dom.addFriendBackdrop.addEventListener("click", closeAddFriendModal);
 
   // --- Session & App Initialization ---
   async function checkSession() {
@@ -205,18 +279,22 @@
   async function initUserApp() {
     dom.authBox.classList.add("hidden");
 
-    // Display username clearly with @ and name
-    dom.currentUserName.textContent = currentUser.display_name || currentUser.username;
+    // Header Tag
     dom.currentUserHandle.textContent = `@${currentUser.username}`;
-    dom.currentUserAvatar.textContent = (currentUser.display_name || currentUser.username).charAt(0).toUpperCase();
-    dom.currentUserLangBadge.textContent = currentUser.language.toUpperCase();
+    updateUserLangUI();
+
+    // Drawer info
+    dom.drawerUserName.textContent = currentUser.display_name || currentUser.username;
+    dom.drawerUserHandle.textContent = `@${currentUser.username}`;
+    dom.drawerUserAvatar.textContent = (currentUser.display_name || currentUser.username).charAt(0).toUpperCase();
+    dom.drawerUserAvatar.className = `tg-avatar ${getAvatarColorClass(currentUser.username)}`;
 
     connectUserHub();
     await loadContacts();
     await loadFriendRequests();
   }
 
-  // --- Real-time Signaling & Presence WebSocket ---
+  // --- WebSocket Connection ---
   function connectUserHub() {
     if (hubSocket) try { hubSocket.close(); } catch (_e) {}
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -274,8 +352,14 @@
     dom.contactsContainer.innerHTML = "";
     if (contacts.length === 0) {
       dom.contactsContainer.innerHTML = `
-        <div class="empty-contacts-view">
-          <p>لا يوجد أصدقاء بعد.<br>أضف صديق بالـ @username أعلاه لبدء المحادثات والمكالمات المترجمة!</p>
+        <div class="tg-empty-feed">
+          <div class="tg-empty-icon">
+            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+          </div>
+          <h4 style="color:#fff; margin-bottom:6px;">لا توجد محادثات بعد</h4>
+          <p style="font-size:0.88rem;">اضغط على زر الإضافة الدائري بالأسفل لإرسال طلب صداقة والبدء بالحديث والاتصال المترجم!</p>
         </div>
       `;
       return;
@@ -283,33 +367,36 @@
 
     contacts.forEach((c) => {
       const row = document.createElement("div");
-      row.className = "contact-row";
+      row.className = "tg-chat-row";
+      const colorCls = getAvatarColorClass(c.username);
+      const initial = (c.display_name || c.username).charAt(0).toUpperCase();
+
       row.innerHTML = `
-        <div class="avatar-container">
-          <div class="user-avatar-sm">${(c.display_name || c.username).charAt(0).toUpperCase()}</div>
-          <span class="dot-online ${c.is_online ? "online" : ""}"></span>
+        <div class="tg-avatar-wrap">
+          <div class="tg-avatar ${colorCls}">${initial}</div>
+          <span class="tg-online-badge ${c.is_online ? "online" : ""}"></span>
         </div>
-        <div class="contact-details">
-          <div class="contact-top-line">
-            <span class="contact-name">${c.display_name}</span>
-            <span class="lang-pill">${c.language.toUpperCase()}</span>
+        <div class="tg-chat-content">
+          <div class="tg-chat-header-row">
+            <span class="tg-chat-name">${c.display_name}</span>
+            <span class="tg-chat-time" style="color:${c.is_online ? 'var(--tg-blue)' : 'var(--tg-text-secondary)'}; font-weight:${c.is_online ? '600' : 'normal'};">
+              ${c.is_online ? "متصل" : ""}
+            </span>
           </div>
-          <div class="contact-sub-line">
-            <span dir="ltr">@${c.username}</span> • <span style="color:${c.is_online ? 'var(--tg-green)' : 'var(--tg-text-secondary)'}">${c.is_online ? 'متصل' : 'غير متصل'}</span>
+          <div class="tg-chat-preview-row">
+            <span class="tg-chat-snippet" dir="ltr">@${c.username}</span>
+            <span class="tg-lang-chip">${c.language.toUpperCase()}</span>
           </div>
         </div>
+        <div class="tg-divider"></div>
       `;
 
-      // Click on contact opens Telegram chat / profile
-      row.addEventListener("click", () => {
-        openChat(c);
-      });
-
+      row.addEventListener("click", () => openChat(c));
       dom.contactsContainer.appendChild(row);
     });
   }
 
-  // --- Friend Requests (Incoming & Outgoing Pending) ---
+  // --- Add Friend API ---
   dom.btnAddFriend.addEventListener("click", async () => {
     let username = dom.addFriendInput.value.trim();
     if (username.startsWith("@")) username = username.substring(1);
@@ -323,8 +410,9 @@
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "تعذر إرسال طلب الصداقة");
-      alert(data.message || "تم إرسال طلب الصداقة!");
+      alert(data.message || "تم إرسال طلب الصداقة بنجاح!");
       dom.addFriendInput.value = "";
+      closeAddFriendModal();
       await loadContacts();
       await loadFriendRequests();
     } catch (err) {
@@ -332,6 +420,7 @@
     }
   });
 
+  // --- Friend Requests API & Rendering ---
   async function loadFriendRequests() {
     try {
       const res = await fetch("/api/friend-requests", { headers: authHeaders() });
@@ -340,32 +429,41 @@
       const incoming = data.incoming || [];
       const outgoing = data.outgoing || [];
 
-      // Render Incoming
-      if (incoming.length === 0) {
-        dom.friendRequestsSection.classList.add("hidden");
+      // Update badge
+      if (incoming.length > 0) {
+        dom.requestsCountBadge.textContent = incoming.length;
+        dom.requestsCountBadge.classList.remove("hidden");
       } else {
-        dom.friendRequestsSection.classList.remove("hidden");
-        dom.friendRequestsList.innerHTML = "";
+        dom.requestsCountBadge.classList.add("hidden");
+      }
+
+      // Render Incoming
+      dom.incomingRequestsList.innerHTML = "";
+      if (incoming.length === 0) {
+        dom.emptyIncomingText.classList.remove("hidden");
+      } else {
+        dom.emptyIncomingText.classList.add("hidden");
         incoming.forEach((req) => {
-          const item = document.createElement("div");
-          item.className = "request-item";
-          item.innerHTML = `
-            <div class="request-info">
-              <div class="user-avatar-sm" style="width:30px;height:30px;font-size:0.8rem;">
-                ${(req.display_name || req.username).charAt(0).toUpperCase()}
-              </div>
+          const card = document.createElement("div");
+          card.className = "tg-request-card";
+          const colorCls = getAvatarColorClass(req.username);
+          const initial = (req.display_name || req.username).charAt(0).toUpperCase();
+
+          card.innerHTML = `
+            <div class="tg-request-user">
+              <div class="tg-avatar ${colorCls}" style="width:42px;height:42px;font-size:1.1rem;">${initial}</div>
               <div>
-                <span style="font-weight:600;font-size:0.85rem;">${req.display_name}</span>
-                <span style="color:var(--tg-text-secondary);font-size:0.75rem;" dir="ltr">(@${req.username})</span>
+                <strong style="color:#fff; font-size:0.92rem; display:block;">${req.display_name}</strong>
+                <span style="color:var(--tg-text-secondary); font-size:0.78rem;" dir="ltr">@${req.username}</span>
               </div>
             </div>
-            <div class="request-actions">
-              <button class="btn-req-accept" data-req-id="${req.request_id}">قبول</button>
-              <button class="btn-req-reject" data-req-id="${req.request_id}">رفض</button>
+            <div class="tg-request-actions">
+              <button class="btn-tg-action btn-accept-req btn-acc" data-id="${req.request_id}">قبول</button>
+              <button class="btn-tg-action btn-reject-req btn-rej" data-id="${req.request_id}">رفض</button>
             </div>
           `;
 
-          item.querySelector(".btn-req-accept").addEventListener("click", async () => {
+          card.querySelector(".btn-acc").addEventListener("click", async () => {
             try {
               const r = await fetch(`/api/friend-requests/${req.request_id}/accept`, {
                 method: "POST",
@@ -378,7 +476,7 @@
             } catch (_e) {}
           });
 
-          item.querySelector(".btn-req-reject").addEventListener("click", async () => {
+          card.querySelector(".btn-rej").addEventListener("click", async () => {
             try {
               const r = await fetch(`/api/friend-requests/${req.request_id}/reject`, {
                 method: "POST",
@@ -388,35 +486,36 @@
             } catch (_e) {}
           });
 
-          dom.friendRequestsList.appendChild(item);
+          dom.incomingRequestsList.appendChild(card);
         });
       }
 
-      // Render Outgoing (Pending Approval)
+      // Render Outgoing (Pending)
+      dom.outgoingRequestsList.innerHTML = "";
       if (outgoing.length === 0) {
-        dom.outgoingRequestsSection.classList.add("hidden");
+        dom.emptyOutgoingText.classList.remove("hidden");
       } else {
-        dom.outgoingRequestsSection.classList.remove("hidden");
-        dom.outgoingRequestsList.innerHTML = "";
+        dom.emptyOutgoingText.classList.add("hidden");
         outgoing.forEach((req) => {
-          const item = document.createElement("div");
-          item.className = "request-item";
-          item.innerHTML = `
-            <div class="request-info">
-              <div class="user-avatar-sm" style="width:30px;height:30px;font-size:0.8rem;background:#d97706;">
-                ${(req.display_name || req.username).charAt(0).toUpperCase()}
-              </div>
+          const card = document.createElement("div");
+          card.className = "tg-request-card";
+          const colorCls = getAvatarColorClass(req.username);
+          const initial = (req.display_name || req.username).charAt(0).toUpperCase();
+
+          card.innerHTML = `
+            <div class="tg-request-user">
+              <div class="tg-avatar ${colorCls}" style="width:42px;height:42px;font-size:1.1rem;">${initial}</div>
               <div>
-                <span style="font-weight:600;font-size:0.85rem;">${req.display_name}</span>
-                <span style="color:var(--tg-text-secondary);font-size:0.75rem;" dir="ltr">(@${req.username})</span>
+                <strong style="color:#fff; font-size:0.92rem; display:block;">${req.display_name}</strong>
+                <span style="color:var(--tg-orange); font-size:0.78rem;">بانتظار الموافقة • <span dir="ltr">@${req.username}</span></span>
               </div>
             </div>
-            <div class="request-actions">
-              <button class="btn-req-cancel" data-req-id="${req.request_id}">إلغاء الطلب</button>
+            <div class="tg-request-actions">
+              <button class="btn-tg-action btn-cancel-req btn-can" data-id="${req.request_id}">إلغاء الطلب</button>
             </div>
           `;
 
-          item.querySelector(".btn-req-cancel").addEventListener("click", async () => {
+          card.querySelector(".btn-can").addEventListener("click", async () => {
             try {
               const r = await fetch(`/api/friend-requests/${req.request_id}/cancel`, {
                 method: "POST",
@@ -426,33 +525,50 @@
             } catch (_e) {}
           });
 
-          dom.outgoingRequestsList.appendChild(item);
+          dom.outgoingRequestsList.appendChild(card);
         });
       }
     } catch (_e) {}
   }
 
-  // --- Telegram Chat View ---
+  // --- Telegram Chat Screen ---
   async function openChat(contact) {
     activeChatContact = contact;
     dom.chatContactName.textContent = contact.display_name;
+    const colorCls = getAvatarColorClass(contact.username);
+    dom.chatContactAvatar.className = `tg-avatar ${colorCls}`;
     dom.chatContactAvatar.textContent = (contact.display_name || contact.username).charAt(0).toUpperCase();
-    dom.chatContactStatus.textContent = contact.is_online ? "متصل الآن (Online)" : "غير متصل";
-    dom.chatContactStatus.style.color = contact.is_online ? "var(--tg-green)" : "var(--tg-text-secondary)";
-    dom.chatContactLangBadge.textContent = contact.language.toUpperCase();
 
+    dom.chatContactStatus.textContent = contact.is_online ? "متصل الآن" : "آخر ظهور مؤخراً";
+    dom.chatContactStatus.className = contact.is_online ? "" : "offline";
+
+    dom.chatKebabDropdown.classList.add("hidden");
     dom.chatViewOverlay.classList.remove("hidden");
+
     await loadChatMessages(contact.username);
   }
 
   function closeChat() {
     activeChatContact = null;
+    dom.chatKebabDropdown.classList.add("hidden");
     dom.chatViewOverlay.classList.add("hidden");
   }
 
   dom.btnChatBack.addEventListener("click", closeChat);
 
-  // Delete button INSIDE contact profile / chat
+  // Kebab menu dropdown toggle
+  dom.btnChatMenu.addEventListener("click", (e) => {
+    e.stopPropagation();
+    dom.chatKebabDropdown.classList.toggle("hidden");
+  });
+
+  document.addEventListener("click", () => {
+    if (!dom.chatKebabDropdown.classList.contains("hidden")) {
+      dom.chatKebabDropdown.classList.add("hidden");
+    }
+  });
+
+  // Delete contact inside chat
   dom.btnChatDelete.addEventListener("click", async () => {
     if (!activeChatContact) return;
     const c = activeChatContact;
@@ -469,7 +585,7 @@
     } catch (_e) {}
   });
 
-  // Call button in chat header
+  // Green Call button in chat appbar
   dom.btnChatCall.addEventListener("click", () => {
     if (activeChatContact) initiateCall(activeChatContact);
   });
@@ -488,7 +604,7 @@
   function appendMessageBubble(msg) {
     const isOut = msg.from_user_id === currentUser.id;
     const bubble = document.createElement("div");
-    bubble.className = `msg-bubble ${isOut ? "outgoing" : "incoming"}`;
+    bubble.className = `tg-bubble ${isOut ? "out" : "in"}`;
 
     const timeStr = msg.created_at
       ? new Date(msg.created_at * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
@@ -496,13 +612,27 @@
 
     let translationHtml = "";
     if (msg.translated_text && msg.translated_text !== msg.original_text) {
-      translationHtml = `<div class="msg-translation-pill">🌐 ${msg.translated_text}</div>`;
+      translationHtml = `
+        <div class="tg-translation-box">
+          <div class="tg-translation-header">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+              <circle cx="12" cy="12" r="10"/>
+              <line x1="2" y1="12" x2="22" y2="12"/>
+            </svg>
+            <span>ترجمة فورية</span>
+          </div>
+          <div>${escapeHtml(msg.translated_text)}</div>
+        </div>
+      `;
     }
 
     bubble.innerHTML = `
-      <div class="msg-text-original">${escapeHtml(msg.original_text)}</div>
+      <div class="tg-bubble-original-text">${escapeHtml(msg.original_text)}</div>
       ${translationHtml}
-      <div class="msg-time">${timeStr}</div>
+      <div class="tg-bubble-footer">
+        <span>${timeStr}</span>
+        ${isOut ? '<span style="color:#79b8ff;">✓✓</span>' : ''}
+      </div>
     `;
 
     dom.chatMessagesContainer.appendChild(bubble);
@@ -557,6 +687,8 @@
     unlockAudioGraph();
 
     dom.callTargetName.textContent = target.display_name;
+    const colorCls = getAvatarColorClass(target.username);
+    dom.callOverlayAvatar.className = `tg-call-big-avatar ${colorCls}`;
     dom.callOverlayAvatar.textContent = (target.display_name || target.username).charAt(0).toUpperCase();
     dom.callStatusLine.textContent = "جاري الاتصال والرنين...";
     dom.callCaptionText.textContent = "بانتظار قبول الطرف الآخر للمكالمة...";
@@ -582,6 +714,8 @@
 
   function handleIncomingCall(msg) {
     currentIncomingCall = msg;
+    const colorCls = getAvatarColorClass(msg.caller);
+    dom.incomingAvatar.className = `tg-call-big-avatar ${colorCls}`;
     dom.incomingAvatar.textContent = (msg.caller_name || msg.caller).charAt(0).toUpperCase();
     dom.incomingCallerName.textContent = msg.caller_name;
     dom.incomingCallerSub.textContent = `مكالمة مترجمة واردة (${msg.caller_language.toUpperCase()})`;
@@ -612,6 +746,8 @@
     }));
 
     dom.callTargetName.textContent = callData.caller_name;
+    const colorCls = getAvatarColorClass(callData.caller);
+    dom.callOverlayAvatar.className = `tg-call-big-avatar ${colorCls}`;
     dom.callOverlayAvatar.textContent = (callData.caller_name || callData.caller).charAt(0).toUpperCase();
     dom.callStatusLine.textContent = "جاري تفعيل المكالمة المترجمة...";
     dom.callCaptionText.textContent = "جاري تشغيل محرك الترجمة...";
@@ -719,7 +855,7 @@
         }
       };
 
-      // CRUCIAL FIX: send "ice-candidate" with candidate object (expected by app.py)
+      // Ensure "ice-candidate" type expected by server
       rtcPeer.onicecandidate = (e) => {
         if (e.candidate && rtcSocket && rtcSocket.readyState === WebSocket.OPEN) {
           rtcSocket.send(JSON.stringify({
@@ -729,7 +865,6 @@
         }
       };
 
-      // Connect signaling websocket
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       const wsUrl = `${proto}//${location.host}/ws/${encodeURIComponent(activeCallSession.roomId)}/${encodeURIComponent(activeCallSession.role)}`;
       rtcSocket = new WebSocket(wsUrl, ["calltranslate", activeCallSession.accessToken]);
@@ -745,9 +880,7 @@
         } catch (_err) {}
       }
 
-      rtcSocket.onopen = async () => {
-        // Ready to signal
-      };
+      rtcSocket.onopen = async () => {};
 
       rtcSocket.onmessage = async (e) => {
         let msg;
@@ -1053,7 +1186,7 @@
     const tracks = localMediaStream.getAudioTracks();
     const currentlyEnabled = tracks.some((t) => t.enabled);
     tracks.forEach((t) => (t.enabled = !currentlyEnabled));
-    dom.btnCallMute.classList.toggle("muted", currentlyEnabled);
+    dom.btnCallMute.classList.toggle("active-mute", !currentlyEnabled);
   });
 
   checkSession();
