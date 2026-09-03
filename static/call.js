@@ -43,6 +43,7 @@ const messages = {
     connectionFailed: "انقطع الاتصال. اضغط «اتصل مجدداً» للمحاولة.",
     translationFailed: "انقطعت الترجمة. اضغط «اتصل مجدداً» لبدء جلسة جديدة.",
     soundBlocked: "المكالمة متصلة، لكن المتصفح منع تشغيل الصوت. المس الشاشة مرة واحدة.",
+    playAudio: "تشغيل الصوت",
     generic: "حدث خطأ في الاتصال. حاول مجدداً.",
   },
   en: {
@@ -87,6 +88,7 @@ const messages = {
     connectionFailed: "The connection was lost. Tap “Call again” to retry.",
     translationFailed: "Translation stopped. Tap “Call again” to start a new session.",
     soundBlocked: "The browser blocked audio. Tap the screen once.",
+    playAudio: "Play audio",
     generic: "A connection error occurred. Please try again.",
   },
 };
@@ -136,6 +138,10 @@ let translationTimer = null;
 let timerInterval = null;
 let startedAt = 0;
 let wakeLock = null;
+let activityContext = null;
+let activitySource = null;
+let activityAnalyser = null;
+let activityFrame = null;
 let sourceText = "";
 let translatedText = "";
 let sourceElapsed = null;
@@ -166,11 +172,26 @@ const el = {
   translated: document.getElementById("translatedTranscript"),
   headset: document.getElementById("headsetNote"),
   error: document.getElementById("errorBanner"),
+  errorText: document.getElementById("errorText"),
+  audioUnlock: document.getElementById("audioUnlockButton"),
+  audioUnlockLabel: document.getElementById("audioUnlockLabel"),
   audio: document.getElementById("translatedAudio"),
   liveIndicator: document.querySelector(".live-indicator"),
 };
 
 const t = (key) => messages[role === "en" ? "en" : "ar"][key];
+
+const statusStates = {
+  loading: "loading",
+  ready: "ready",
+  mic: "permission",
+  waiting: "waiting",
+  joining: "connecting",
+  translating: "connecting",
+  live: "live",
+  retrying: "reconnecting",
+  ended: "ended",
+};
 
 function localize() {
   const language = role === "en" ? "en" : "ar";
@@ -191,6 +212,7 @@ function localize() {
   el.sourceLabel.textContent = t("sourceLabel");
   el.translatedLabel.textContent = t("translatedLabel");
   el.headset.textContent = t("headset");
+  el.audioUnlockLabel.textContent = t("playAudio");
   el.source.lang = sourceLanguage;
   el.source.dir = sourceLanguage === "ar" ? "rtl" : "ltr";
   el.translated.lang = language;
@@ -203,6 +225,7 @@ function setStatus(key, orbit = "") {
   el.status.textContent = t(key);
   el.orbit.classList.remove("connecting", "live");
   if (orbit) el.orbit.classList.add(orbit);
+  document.body.dataset.callState = statusStates[key] || "ready";
 }
 
 function setLive(active) {
@@ -212,15 +235,28 @@ function setLive(active) {
 
 function showError(key, category = "general") {
   visibleError = category;
-  el.error.textContent = t(key);
+  el.errorText.textContent = t(key);
+  el.audioUnlock.classList.toggle("hidden", category !== "sound");
   el.error.classList.remove("hidden");
+  if (category !== "sound") document.body.dataset.callState = "error";
 }
 
 function clearError(category = "") {
   if (category && visibleError !== category) return;
   visibleError = "";
-  el.error.textContent = "";
+  el.errorText.textContent = "";
+  el.audioUnlock.classList.add("hidden");
   el.error.classList.add("hidden");
+}
+
+async function unlockAudio() {
+  if (!el.audio.srcObject) return;
+  try {
+    await el.audio.play();
+    clearError("sound");
+  } catch (_error) {
+    showError("soundBlocked", "sound");
+  }
 }
 
 function resetTranscripts() {
@@ -252,6 +288,9 @@ function appendTranscript(kind, delta, elapsed) {
 function setJoined(joined, focus = false) {
   el.join.classList.toggle("hidden", joined);
   el.controls.classList.toggle("hidden", !joined);
+  el.home.setAttribute("aria-disabled", String(joined));
+  if (joined) el.home.setAttribute("tabindex", "-1");
+  else el.home.removeAttribute("tabindex");
   if (focus) requestAnimationFrame(() => (joined ? el.mute : el.join).focus({ preventScroll: true }));
 }
 
@@ -264,6 +303,7 @@ function updateTimer() {
 function startTimer() {
   if (startedAt) return;
   startedAt = Date.now();
+  el.timer.classList.add("active");
   updateTimer();
   timerInterval = setInterval(updateTimer, 1000);
 }
@@ -272,7 +312,53 @@ function stopTimer() {
   if (timerInterval) clearInterval(timerInterval);
   timerInterval = null;
   startedAt = 0;
+  el.timer.classList.remove("active");
   updateTimer();
+}
+
+function stopRemoteActivity() {
+  if (activityFrame) cancelAnimationFrame(activityFrame);
+  activityFrame = null;
+  document.body.classList.remove("remote-speaking");
+  try { activitySource?.disconnect(); } catch (_error) {}
+  activitySource = null;
+  activityAnalyser = null;
+  if (activityContext) void activityContext.close().catch(() => {});
+  activityContext = null;
+}
+
+function startRemoteActivity(track) {
+  stopRemoteActivity();
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) return;
+  try {
+    const context = new AudioContextClass();
+    const analyser = context.createAnalyser();
+    const source = context.createMediaStreamSource(new MediaStream([track]));
+    const samples = new Uint8Array(128);
+    analyser.fftSize = 256;
+    analyser.smoothingTimeConstant = 0.78;
+    source.connect(analyser);
+    activityContext = context;
+    activitySource = source;
+    activityAnalyser = analyser;
+    void context.resume().catch(() => {});
+
+    const measure = () => {
+      if (activityAnalyser !== analyser || track.readyState !== "live") return;
+      analyser.getByteTimeDomainData(samples);
+      let energy = 0;
+      for (const sample of samples) {
+        const level = (sample - 128) / 128;
+        energy += level * level;
+      }
+      document.body.classList.toggle("remote-speaking", Math.sqrt(energy / samples.length) > 0.028);
+      activityFrame = requestAnimationFrame(measure);
+    };
+    measure();
+  } catch (_error) {
+    stopRemoteActivity();
+  }
 }
 
 function authHeaders(headers = {}) {
@@ -371,6 +457,7 @@ async function ensurePeer() {
   connection.ontrack = (event) => {
     if (peer !== connection || event.track.kind !== "audio" || event.track.id === remoteTrackId) return;
     remoteTrackId = event.track.id;
+    startRemoteActivity(event.track);
     void startTranslation(event.track);
   };
   connection.onconnectionstatechange = () => {
@@ -468,7 +555,7 @@ function handleTranslationEvent(data) {
 async function startTranslation(remoteTrack, isRetry = false) {
   if (!isRetry) translationRetryCount = 0;
   const generation = ++translationGeneration;
-  closeTranslation();
+  closeTranslation(true);
   clearError();
   resetTranscripts();
   setStatus("translating", "connecting");
@@ -549,7 +636,7 @@ async function startTranslation(remoteTrack, isRetry = false) {
   }
 }
 
-function closeTranslation() {
+function closeTranslation(preserveTimer = false) {
   if (translationTimer) clearTimeout(translationTimer);
   translationTimer = null;
   if (translationTrack) translationTrack.stop();
@@ -562,7 +649,7 @@ function closeTranslation() {
   el.audio.pause();
   el.audio.srcObject = null;
   setLive(false);
-  stopTimer();
+  if (!preserveTimer) stopTimer();
 }
 
 function teardownPeer() {
@@ -570,6 +657,7 @@ function teardownPeer() {
   if (reconnectTimer) clearTimeout(reconnectTimer);
   reconnectTimer = null;
   closeTranslation();
+  stopRemoteActivity();
   if (peer) {
     peer.ontrack = peer.onicecandidate = peer.onconnectionstatechange = null;
     peer.close();
@@ -733,6 +821,7 @@ async function initialize() {
 el.join.addEventListener("click", join);
 el.mute.addEventListener("click", toggleMute);
 el.leave.addEventListener("click", leave);
+el.audioUnlock.addEventListener("click", unlockAudio);
 document.addEventListener("click", () => {
   if (el.audio.srcObject && el.audio.paused) void el.audio.play().then(() => clearError("sound")).catch(() => {});
 });

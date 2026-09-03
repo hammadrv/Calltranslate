@@ -3,33 +3,85 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#08111f">
+    <meta name="theme-color" content="#07111f">
     <title>Calltranslate — مكالمة مترجمة</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/static/styles.css">
   </head>
   <body class="lobby-page">
+    <div class="ambient-light ambient-light-top" aria-hidden="true"></div>
+    <div class="ambient-light ambient-light-bottom" aria-hidden="true"></div>
+
     <main class="lobby-shell">
       <section class="hero-card">
-        <div class="brand-mark" aria-hidden="true">
-          <span>ع</span>
-          <span>EN</span>
+        <div class="lobby-brand">
+          <div class="brand-mark" aria-hidden="true">
+            <span>ع</span><i></i><span>EN</span>
+          </div>
+          <p class="eyebrow">CALLTRANSLATE</p>
         </div>
-        <p class="eyebrow">CALLTRANSLATE</p>
-        <h1>مكالمة واحدة، لغتان</h1>
-        <p class="hero-copy">
-          رابطان ثابتان وآمنان لشخصين. يتحدث الأول بالعربية، ويتحدث الثاني
-          بالإنجليزية، وكل طرف يسمع الترجمة بلغته. يمكن استخدام الرابطين
-          نفسيهما في كل مكالمة.
-        </p>
-        <p class="privacy-note">
-          لا يحتفظ التطبيق بتسجيلات للمكالمة. يُعالج الصوت لحظياً لتوليد
-          الترجمة. الرابطان ثابتان، أما جلسة الدخول الداخلية فتتجدد تلقائياً.
-        </p>
-        <p class="privacy-note">
-          تم إعداد رابط خاص مختلف لكل طرف على السيرفر. لا نعرض الرابطين في
-          هذه الصفحة؛ افتح الرابط الآمن الذي وصلك مباشرة.
-        </p>
+
+        <div class="hero-copy-wrap">
+          <span class="secure-chip">
+            <svg viewBox="0 0 24 24" aria-hidden="true">
+              <path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v10H6z"></path>
+            </svg>
+            مكالمة خاصة ومباشرة
+          </span>
+          <h1>مكالمة واحدة،<br><span>بلغتين.</span></h1>
+          <p class="hero-copy">
+            يتحدث كل شخص بلغته، ويسمع الطرف الآخر ترجمة صوتية فورية وطبيعية.
+            تجربة بسيطة تشبه المكالمة العادية.
+          </p>
+        </div>
+
+        <div class="language-route" aria-label="ترجمة بين العربية والإنجليزية">
+          <div class="language-person">
+            <span class="language-avatar arabic-avatar">ع</span>
+            <strong>العربية</strong>
+          </div>
+          <div class="route-line" aria-hidden="true">
+            <span></span><i></i><span></span>
+          </div>
+          <div class="language-person">
+            <span class="language-avatar english-avatar">EN</span>
+            <strong>English</strong>
+          </div>
+        </div>
+
+        <div class="feature-grid">
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M4 12h3l2-6 4 12 2-6h5"></path></svg>
+            </span>
+            <div><strong>ترجمة فورية</strong><small>صوت بصوت أثناء الحديث</small></div>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M12 3 5 6v5c0 4.6 2.8 8.2 7 10 4.2-1.8 7-5.4 7-10V6l-7-3Z"></path>
+                <path d="m9 12 2 2 4-5"></path>
+              </svg>
+            </span>
+            <div><strong>روابط خاصة</strong><small>رابط مختلف وآمن لكل طرف</small></div>
+          </article>
+          <article class="feature-card">
+            <span class="feature-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24"><path d="M12 4v16M8 8v8M4 10v4M16 7v10M20 10v4"></path></svg>
+            </span>
+            <div><strong>نص مباشر</strong><small>شاهد الكلام والترجمة بوضوح</small></div>
+          </article>
+        </div>
+
+        <div class="privacy-note">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M7 10V8a5 5 0 0 1 10 0v2M6 10h12v10H6z"></path>
+          </svg>
+          <p>
+            لا يحتفظ التطبيق بتسجيلات للمكالمة. يُعالج الصوت لحظياً لتوليد
+            الترجمة. رابطان ثابتان لكل طرف، وجلسة دخول داخلية تتجدد تلقائياً.
+          </p>
+        </div>
       </section>
     </main>
   </body>

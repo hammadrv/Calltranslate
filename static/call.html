@@ -3,63 +3,126 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <meta name="theme-color" content="#08111f">
+    <meta name="theme-color" content="#07111f">
     <title>Calltranslate</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
     <link rel="stylesheet" href="/static/styles.css">
   </head>
-  <body class="call-page">
+  <body class="call-page" data-call-state="loading">
+    <div class="ambient-light ambient-light-top" aria-hidden="true"></div>
+    <div class="ambient-light ambient-light-bottom" aria-hidden="true"></div>
+
     <main class="call-shell">
       <header class="call-header">
-        <a class="wordmark" id="homeLink" href="/">Calltranslate</a>
+        <a class="wordmark" id="homeLink" href="/">
+          <span class="wordmark-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="m14.8 5.5-6.3 6.3 6.3 6.3"></path>
+            </svg>
+          </span>
+          <span>Calltranslate</span>
+        </a>
         <span class="role-badge" id="roleBadge"></span>
       </header>
 
       <section class="call-stage" aria-labelledby="callTitle">
-        <div class="connection-orbit" id="connectionOrbit" aria-hidden="true">
-          <div class="participant-avatar" id="participantAvatar"></div>
+        <div class="call-identity">
+          <div class="connection-orbit" id="connectionOrbit" aria-hidden="true">
+            <span class="orbit-ring orbit-ring-one"></span>
+            <span class="orbit-ring orbit-ring-two"></span>
+            <span class="orbit-ring orbit-ring-three"></span>
+            <div class="participant-avatar" id="participantAvatar"></div>
+            <span class="avatar-status"></span>
+            <span class="voice-bars">
+              <i></i><i></i><i></i><i></i><i></i>
+            </span>
+          </div>
         </div>
 
-        <p class="eyebrow" id="directionLabel" dir="ltr"></p>
+        <p class="eyebrow direction-pill" id="directionLabel" dir="ltr"></p>
         <h1 id="callTitle"></h1>
-        <p class="status-line" id="statusLine" role="status" aria-live="polite"></p>
+        <div class="call-state-pill">
+          <span class="state-dot" aria-hidden="true"></span>
+          <p class="status-line" id="statusLine" role="status" aria-live="polite"></p>
+        </div>
         <time class="call-timer" id="callTimer" datetime="PT0S">00:00</time>
 
         <button class="primary-button large join-button" id="joinButton" type="button">
+          <span class="button-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24">
+              <path d="M8.6 3.8 11 8.2 8.9 10a14.8 14.8 0 0 0 5.1 5.1l1.8-2.1 4.4 2.4-.7 3.5c-.2 1-1.1 1.7-2.1 1.6A15.2 15.2 0 0 1 3.5 6.6c-.1-1 .6-1.9 1.6-2.1l3.5-.7Z"></path>
+            </svg>
+          </span>
           <span id="joinButtonLabel"></span>
         </button>
 
         <div class="call-controls hidden" id="callControls" role="group">
           <button class="round-control" id="muteButton" type="button" aria-pressed="false">
-            <span class="control-icon" aria-hidden="true">◉</span>
+            <span class="control-icon" aria-hidden="true">
+              <svg class="mic-on-icon" viewBox="0 0 24 24">
+                <rect x="9" y="3" width="6" height="11" rx="3"></rect>
+                <path d="M5.5 11.5a6.5 6.5 0 0 0 13 0M12 18v3M8.5 21h7"></path>
+              </svg>
+              <svg class="mic-off-icon" viewBox="0 0 24 24">
+                <path d="M9 9v2a3 3 0 0 0 4.8 2.4M15 9V6a3 3 0 0 0-5.7-1.3M5.5 11.5A6.5 6.5 0 0 0 16.2 16M18.5 11.5a6.5 6.5 0 0 1-.3 2M12 18v3M8.5 21h7M4 4l16 16"></path>
+              </svg>
+            </span>
             <span id="muteButtonLabel"></span>
           </button>
           <button class="round-control danger" id="leaveButton" type="button">
-            <span class="control-icon handset" aria-hidden="true">⌕</span>
+            <span class="control-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M4.2 14.4a13.5 13.5 0 0 1 15.6 0l-2.1 4a1.4 1.4 0 0 1-1.7.7l-2.1-.8v-2.1a10.5 10.5 0 0 0-3.8 0v2.1l-2.1.8a1.4 1.4 0 0 1-1.7-.7l-2.1-4Z"></path>
+              </svg>
+            </span>
             <span id="leaveButtonLabel"></span>
           </button>
         </div>
       </section>
 
-      <p class="error-banner hidden" id="errorBanner" role="alert"></p>
+      <div class="error-banner hidden" id="errorBanner" role="alert">
+        <span id="errorText"></span>
+        <button class="audio-unlock-button hidden" id="audioUnlockButton" type="button">
+          <svg viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M11 5 7 9H4v6h3l4 4V5ZM15.5 9a4 4 0 0 1 0 6M18 6.5a7.5 7.5 0 0 1 0 11"></path>
+          </svg>
+          <span id="audioUnlockLabel"></span>
+        </button>
+      </div>
 
       <section class="captions-panel" aria-labelledby="captionsTitle">
         <div class="captions-heading">
-          <h2 id="captionsTitle"></h2>
+          <div class="captions-title-wrap">
+            <span class="captions-icon" aria-hidden="true">
+              <svg viewBox="0 0 24 24">
+                <path d="M5 5.5h14a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-7l-4.5 3v-3H5a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2Z"></path>
+                <path d="M7 10h4M14 10h3M7 13.5h7"></path>
+              </svg>
+            </span>
+            <h2 id="captionsTitle"></h2>
+          </div>
           <span class="live-indicator" aria-hidden="true">
             <i></i><span id="liveLabel"></span>
           </span>
         </div>
 
-        <article class="caption-block source-caption">
-          <span class="caption-label" id="sourceCaptionLabel"></span>
-          <p id="sourceTranscript" dir="auto"></p>
-        </article>
+        <div class="captions-stack">
+          <article class="caption-block translated-caption">
+            <span class="caption-language-dot" aria-hidden="true"></span>
+            <div class="caption-content">
+              <span class="caption-label" id="translatedCaptionLabel"></span>
+              <p id="translatedTranscript" dir="auto"></p>
+            </div>
+          </article>
 
-        <article class="caption-block translated-caption">
-          <span class="caption-label" id="translatedCaptionLabel"></span>
-          <p id="translatedTranscript" dir="auto"></p>
-        </article>
+          <article class="caption-block source-caption">
+            <span class="caption-language-dot" aria-hidden="true"></span>
+            <div class="caption-content">
+              <span class="caption-label" id="sourceCaptionLabel"></span>
+              <p id="sourceTranscript" dir="auto"></p>
+            </div>
+          </article>
+        </div>
       </section>
 
       <p class="headset-note" id="headsetNote"></p>
