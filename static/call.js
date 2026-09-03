@@ -879,10 +879,20 @@ async function startGeminiTranslation(remoteTrack, isRetry = false) {
     }
   };
 
-  ws.onmessage = (event) => {
+  ws.onmessage = async (event) => {
     if (geminiSocket !== ws) return;
     let msg;
-    try { msg = JSON.parse(event.data); } catch (_e) { return; }
+    try {
+      let rawText = event.data;
+      if (rawText instanceof Blob) {
+        rawText = await rawText.text();
+      } else if (rawText instanceof ArrayBuffer) {
+        rawText = new TextDecoder().decode(rawText);
+      }
+      msg = JSON.parse(rawText);
+    } catch (_e) {
+      return;
+    }
 
     if (isDirect) {
       if (msg.setupComplete) {
