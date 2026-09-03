@@ -10,4 +10,5 @@ htmlcov/
 secrets/
 *key*.txt
 *.key
+*.db*
 .DS_Store

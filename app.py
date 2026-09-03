@@ -24,6 +24,7 @@ try:
 except ImportError:
     pass
 
+import db
 import httpx
 import websockets
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
@@ -46,7 +47,7 @@ GEMINI_MODELS = {
     "gemini-2.5-flash-native-audio-latest": "models/gemini-2.5-flash-native-audio-latest",
     "gemini-3.5-live-translate-preview": "models/gemini-3.5-live-translate-preview",
 }
-DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-native-audio-latest"
+DEFAULT_GEMINI_MODEL = "gemini-3.5-live-translate-preview"
 ROOM_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{12,80}$")
 ACCESS_TOKEN_PATTERN = re.compile(r"^ct_[A-Za-z0-9_-]{32,100}$")
 FIXED_LINK_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{32,128}$")
@@ -241,6 +242,34 @@ class RoomAccessRequest(BaseModel):
 
 class FixedAccessRequest(BaseModel):
     token: str = Field(min_length=32, max_length=128)
+
+
+class RegisterInput(BaseModel):
+    username: str = Field(min_length=3, max_length=32)
+    password: str = Field(min_length=6, max_length=128)
+    display_name: str = Field(default="", max_length=64)
+    language: str = Field(default="ar", max_length=10)
+
+
+class LoginInput(BaseModel):
+    username: str = Field(min_length=3, max_length=32)
+    password: str = Field(min_length=6, max_length=128)
+
+
+class ContactInput(BaseModel):
+    username: str = Field(min_length=3, max_length=32)
+
+
+class LanguageInput(BaseModel):
+    language: str = Field(min_length=2, max_length=10)
+
+
+class AdminModelInput(BaseModel):
+    model: str = Field(min_length=3, max_length=64)
+
+
+class AdminPasswordInput(BaseModel):
+    password: str = Field(min_length=6, max_length=128)
 
 
 @dataclass
@@ -502,6 +531,37 @@ class SignalRateLimiter:
         return True
 
 
+class UserHub:
+    def __init__(self) -> None:
+        self._lock = asyncio.Lock()
+        self._connections: dict[str, set[WebSocket]] = {}
+
+    async def connect(self, username: str, ws: WebSocket) -> None:
+        async with self._lock:
+            self._connections.setdefault(username.lower(), set()).add(ws)
+
+    async def disconnect(self, username: str, ws: WebSocket) -> None:
+        async with self._lock:
+            user_set = self._connections.get(username.lower())
+            if user_set:
+                user_set.discard(ws)
+                if not user_set:
+                    self._connections.pop(username.lower(), None)
+
+    async def send_to_user(self, username: str, message: dict[str, Any]) -> bool:
+        async with self._lock:
+            sockets = list(self._connections.get(username.lower(), set()))
+        if not sockets:
+            return False
+        for s in sockets:
+            await safe_send(s, message)
+        return True
+
+    def is_online(self, username: str) -> bool:
+        return bool(self._connections.get(username.lower()))
+
+
+user_hub = UserHub()
 room_store = RoomAccessStore()
 hub = RoomHub()
 
@@ -611,6 +671,30 @@ def require_admin(request: Request) -> None:
     provided = _bearer_token(request)
     if provided is None or not hmac.compare_digest(configured, provided):
         raise _auth_error()
+
+
+def get_current_user(request: Request) -> dict[str, Any]:
+    auth = request.headers.get("Authorization")
+    token = None
+    if auth and auth.startswith("Bearer "):
+        token = auth[len("Bearer ") :].strip()
+    if not token and "usr_token" in request.cookies:
+        token = request.cookies.get("usr_token")
+    if not token:
+        token = request.query_params.get("token")
+    if not token or not token.startswith("usr_"):
+        raise HTTPException(status_code=401, detail="Authentication required")
+    user = db.get_user_by_session(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid or expired session")
+    return user
+
+
+def require_admin_user(request: Request) -> dict[str, Any]:
+    user = get_current_user(request)
+    if not user.get("is_admin"):
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
 
 
 def require_fixed_link(role: str, provided_token: str) -> None:
@@ -800,9 +884,143 @@ async def home() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/app", include_in_schema=False)
+async def app_page() -> FileResponse:
+    return FileResponse(
+        STATIC_DIR / "app.html",
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
+
+
+@app.get("/admin", include_in_schema=False)
+async def admin_page() -> FileResponse:
+    return FileResponse(
+        STATIC_DIR / "admin.html",
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
+
+
 @app.get("/healthz", include_in_schema=False)
 async def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
+
+
+# User Auth Endpoints
+@app.post("/api/auth/register")
+async def auth_register(data: RegisterInput) -> JSONResponse:
+    try:
+        user = db.create_user(
+            username=data.username,
+            password=data.password,
+            display_name=data.display_name,
+            language=data.language,
+        )
+        token = db.create_session(user["id"])
+        return JSONResponse({"token": token, "user": user})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/auth/login")
+async def auth_login(data: LoginInput) -> JSONResponse:
+    user = db.authenticate_user(data.username, data.password)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    token = db.create_session(user["id"])
+    return JSONResponse({"token": token, "user": user})
+
+
+@app.get("/api/auth/me")
+async def auth_me(request: Request) -> JSONResponse:
+    user = get_current_user(request)
+    return JSONResponse({"user": user})
+
+
+@app.post("/api/auth/logout")
+async def auth_logout(request: Request) -> JSONResponse:
+    auth = request.headers.get("Authorization", "")
+    if auth.startswith("Bearer "):
+        token = auth[len("Bearer ") :].strip()
+        db.delete_session(token)
+    return JSONResponse({"status": "logged_out"})
+
+
+@app.put("/api/user/language")
+async def update_language(data: LanguageInput, request: Request) -> JSONResponse:
+    user = get_current_user(request)
+    db.update_user_language(user["id"], data.language)
+    return JSONResponse({"status": "updated", "language": data.language})
+
+
+# Contacts Endpoints
+@app.get("/api/contacts")
+async def get_contacts(request: Request) -> JSONResponse:
+    user = get_current_user(request)
+    contacts = db.list_contacts(user["id"])
+    for c in contacts:
+        c["is_online"] = user_hub.is_online(c["username"])
+    return JSONResponse({"contacts": contacts})
+
+
+@app.post("/api/contacts")
+async def add_contact(data: ContactInput, request: Request) -> JSONResponse:
+    user = get_current_user(request)
+    try:
+        contact = db.add_contact(user["id"], data.username)
+        contact["is_online"] = user_hub.is_online(contact["username"])
+        return JSONResponse({"contact": contact})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.delete("/api/contacts/{username}")
+async def delete_contact(username: str, request: Request) -> JSONResponse:
+    user = get_current_user(request)
+    db.remove_contact(user["id"], username)
+    return JSONResponse({"status": "removed"})
+
+
+# Admin Dashboard Endpoints
+@app.get("/api/admin/users")
+async def admin_get_users(request: Request) -> JSONResponse:
+    require_admin_user(request)
+    users = db.list_all_users()
+    for u in users:
+        u["is_online"] = user_hub.is_online(u["username"])
+    return JSONResponse({
+        "users": users,
+        "available_models": db.AVAILABLE_MODELS,
+        "default_model": db.DEFAULT_MODEL,
+    })
+
+
+@app.put("/api/admin/users/{user_id}/model")
+async def admin_set_model(user_id: int, data: AdminModelInput, request: Request) -> JSONResponse:
+    require_admin_user(request)
+    try:
+        db.set_user_model(user_id, data.model)
+        return JSONResponse({"status": "updated", "model": data.model})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.put("/api/admin/users/{user_id}/password")
+async def admin_set_password(user_id: int, data: AdminPasswordInput, request: Request) -> JSONResponse:
+    require_admin_user(request)
+    try:
+        db.set_user_password(user_id, data.password)
+        return JSONResponse({"status": "updated"})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.delete("/api/admin/users/{user_id}")
+async def admin_delete_user(user_id: int, request: Request) -> JSONResponse:
+    admin = require_admin_user(request)
+    if admin["id"] == user_id:
+        raise HTTPException(status_code=400, detail="Cannot delete your own admin account")
+    db.delete_user(user_id)
+    return JSONResponse({"status": "deleted"})
 
 
 @app.get("/join/{role}/{link_token}", include_in_schema=False)
@@ -1344,3 +1562,173 @@ async def signaling_socket(websocket: WebSocket, room_id: str, role: str) -> Non
         )
         await safe_send(peer, {"type": "peer-left"})
         logger.info("Participant %s left room %s", role, room_id[:8])
+
+
+@app.websocket("/ws/user-hub")
+async def user_hub_ws(websocket: WebSocket) -> None:
+    token = websocket.query_params.get("token")
+    if not token:
+        requested = websocket.headers.get("sec-websocket-protocol", "")
+        for item in requested.split(","):
+            val = item.strip()
+            if val.startswith("usr_"):
+                token = val
+                break
+    if not token or not token.startswith("usr_"):
+        await websocket.close(code=4401, reason="Authentication required")
+        return
+    user = db.get_user_by_session(token)
+    if not user:
+        await websocket.close(code=4403, reason="Session invalid or expired")
+        return
+
+    subprotocol = token if token in websocket.headers.get("sec-websocket-protocol", "") else None
+    await websocket.accept(subprotocol=subprotocol)
+    username = user["username"]
+    await user_hub.connect(username, websocket)
+
+    try:
+        await safe_send(
+            websocket,
+            {
+                "type": "connected",
+                "username": username,
+                "display_name": user["display_name"],
+                "language": user["language"],
+                "model": user["effective_model"],
+                "is_admin": user["is_admin"],
+            },
+        )
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+
+            action = msg.get("type")
+            if action == "call_user":
+                target_username = msg.get("target", "").strip().lower()
+                target_user = None
+                conn = db.get_connection()
+                try:
+                    t_row = conn.execute(
+                        "SELECT id, username, display_name, language, assigned_model FROM users WHERE username = ?",
+                        (target_username,),
+                    ).fetchone()
+                    if t_row:
+                        target_user = {
+                            "id": t_row["id"],
+                            "username": t_row["username"],
+                            "display_name": t_row["display_name"],
+                            "language": t_row["language"],
+                            "effective_model": db.DEFAULT_MODEL
+                            if t_row["assigned_model"] == "default"
+                            else t_row["assigned_model"],
+                        }
+                finally:
+                    conn.close()
+
+                if not target_user:
+                    await safe_send(
+                        websocket, {"type": "call_error", "message": "User not found"}
+                    )
+                    continue
+                if not user_hub.is_online(target_username):
+                    await safe_send(
+                        websocket,
+                        {
+                            "type": "call_error",
+                            "message": f"{target_user['display_name']} is offline",
+                        },
+                    )
+                    continue
+
+                room_id = secrets.token_urlsafe(18)
+                await room_store.create_room(
+                    room_id, int(time.time()) + settings.room_ttl_seconds
+                )
+
+                caller_lang = user["language"]
+                target_lang = target_user["language"]
+                if caller_lang == "ar" and target_lang == "en":
+                    caller_role, callee_role = "ar", "en"
+                elif caller_lang == "en" and target_lang == "ar":
+                    caller_role, callee_role = "en", "ar"
+                else:
+                    caller_role, callee_role = "ar", "en"
+
+                caller_grant = issue_grant(room_id, caller_role)
+                callee_grant = issue_grant(room_id, callee_role)
+
+                await safe_send(
+                    websocket,
+                    {
+                        "type": "call_initiating",
+                        "room_id": room_id,
+                        "role": caller_role,
+                        "access_token": caller_grant.token,
+                        "target": target_user["username"],
+                        "target_name": target_user["display_name"],
+                        "target_language": target_user["language"],
+                        "model": user["effective_model"],
+                    },
+                )
+
+                await user_hub.send_to_user(
+                    target_user["username"],
+                    {
+                        "type": "incoming_call",
+                        "room_id": room_id,
+                        "role": callee_role,
+                        "access_token": callee_grant.token,
+                        "caller": user["username"],
+                        "caller_name": user["display_name"],
+                        "caller_language": user["language"],
+                        "model": target_user["effective_model"],
+                    },
+                )
+
+            elif action == "accept_call":
+                caller = msg.get("caller")
+                room_id = msg.get("room_id")
+                if caller:
+                    await user_hub.send_to_user(
+                        caller,
+                        {
+                            "type": "call_accepted",
+                            "room_id": room_id,
+                            "callee": username,
+                        },
+                    )
+
+            elif action == "reject_call":
+                caller = msg.get("caller")
+                room_id = msg.get("room_id")
+                if caller:
+                    await user_hub.send_to_user(
+                        caller,
+                        {
+                            "type": "call_rejected",
+                            "room_id": room_id,
+                            "callee": username,
+                        },
+                    )
+
+            elif action == "cancel_call":
+                target = msg.get("target")
+                room_id = msg.get("room_id")
+                if target:
+                    await user_hub.send_to_user(
+                        target,
+                        {
+                            "type": "call_cancelled",
+                            "room_id": room_id,
+                            "caller": username,
+                        },
+                    )
+    except (WebSocketDisconnect, RuntimeError):
+        pass
+    finally:
+        await user_hub.disconnect(username, websocket)
+

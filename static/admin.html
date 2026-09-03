@@ -1,0 +1,168 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Calltranslate — لوحة الإدارة (Admin)</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/app.css">
+    <style>
+      body {
+        background-color: #0b1118;
+        display: block;
+        overflow-y: auto;
+        padding: 32px 24px;
+      }
+      .admin-wrap {
+        max-width: 1100px;
+        margin: 0 auto;
+      }
+      .admin-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 24px;
+      }
+      .admin-title-row h1 {
+        font-size: 1.6rem;
+        margin-bottom: 4px;
+      }
+      .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 16px;
+        margin-bottom: 24px;
+      }
+      .stat-card {
+        background-color: var(--bg-sidebar);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 18px 20px;
+      }
+      .stat-val {
+        font-size: 1.8rem;
+        font-weight: 700;
+        color: var(--accent-blue);
+      }
+      .stat-lbl {
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+      }
+      .admin-table-card {
+        background-color: var(--bg-sidebar);
+        border: 1px solid var(--border-color);
+        border-radius: 14px;
+        overflow: hidden;
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        text-align: right;
+      }
+      th {
+        background-color: rgba(255, 255, 255, 0.04);
+        padding: 14px 18px;
+        font-size: 0.85rem;
+        color: var(--text-secondary);
+        border-bottom: 1px solid var(--border-color);
+      }
+      td {
+        padding: 14px 18px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+        font-size: 0.95rem;
+        vertical-align: middle;
+      }
+      tr:hover td {
+        background-color: rgba(255, 255, 255, 0.02);
+      }
+      .model-select {
+        background-color: var(--bg-main);
+        color: #fff;
+        border: 1px solid var(--border-color);
+        padding: 8px 12px;
+        border-radius: 8px;
+        outline: none;
+        cursor: pointer;
+      }
+      .model-select:focus {
+        border-color: var(--accent-blue);
+      }
+      .action-btns {
+        display: flex;
+        gap: 8px;
+      }
+      .btn-sm {
+        padding: 6px 12px;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 600;
+        cursor: pointer;
+        border: none;
+      }
+      .btn-danger { background-color: var(--accent-red); color: white; }
+      .btn-secondary { background-color: var(--bg-card); color: var(--text-primary); }
+      .btn-secondary:hover { background-color: var(--bg-hover); }
+      .notification {
+        position: fixed;
+        bottom: 24px;
+        left: 24px;
+        background-color: var(--accent-green);
+        color: white;
+        padding: 12px 24px;
+        border-radius: 8px;
+        font-weight: 600;
+        box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
+        z-index: 1000;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="admin-wrap">
+      <header class="admin-header">
+        <div class="admin-title-row">
+          <h1>لوحة تحكم المسؤول (Admin Dashboard)</h1>
+          <p style="color: var(--text-secondary);">إدارة حسابات المستخدمين والنماذج المخصصة للترجمة</p>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <a href="/app" class="btn-primary" style="text-decoration: none; padding: 10px 20px; font-size: 0.9rem;">العودة للتطبيق (App)</a>
+          <button id="adminLogout" class="btn-sm btn-secondary" style="padding: 10px 16px;">خروج</button>
+        </div>
+      </header>
+
+      <section class="stats-grid">
+        <div class="stat-card">
+          <div id="statTotalUsers" class="stat-val">0</div>
+          <div class="stat-lbl">إجمالي المستخدمين</div>
+        </div>
+        <div class="stat-card">
+          <div id="statOnlineUsers" class="stat-val">0</div>
+          <div class="stat-lbl">المتصلون الآن (Online)</div>
+        </div>
+        <div class="stat-card">
+          <div id="statDefaultModel" class="stat-val" style="font-size: 1.1rem; padding-top: 6px;">Gemini 3.5 Live</div>
+          <div class="stat-lbl">النموذج الافتراضي للنظام</div>
+        </div>
+      </section>
+
+      <div class="admin-table-card">
+        <table>
+          <thead>
+            <tr>
+              <th>المستخدم</th>
+              <th>اللغة</th>
+              <th>الحالة</th>
+              <th>النموذج المخصص (AI Model)</th>
+              <th>الإجراءات</th>
+            </tr>
+          </thead>
+          <tbody id="usersTableBody">
+            <!-- Populated by admin.js -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div id="toast" class="notification hidden"></div>
+    <script src="/static/admin.js" defer></script>
+  </body>
+</html>

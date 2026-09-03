@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <meta name="theme-color" content="#0e1621">
+    <title>Calltranslate — Telegram Web</title>
+    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/app.css">
+  </head>
+  <body>
+    <!-- Auth Overlay (Shown if not logged in) -->
+    <div id="authOverlay" class="auth-overlay">
+      <div class="auth-card">
+        <div class="auth-tabs">
+          <button id="tabLogin" class="auth-tab active">تسجيل الدخول</button>
+          <button id="tabRegister" class="auth-tab">إنشاء حساب</button>
+        </div>
+
+        <!-- Login Form -->
+        <form id="loginForm" class="auth-form">
+          <div class="form-group">
+            <label for="loginUsername">اسم المستخدم (Username)</label>
+            <input type="text" id="loginUsername" class="form-input" required autocomplete="username" placeholder="e.g. rami">
+          </div>
+          <div class="form-group">
+            <label for="loginPassword">كلمة المرور (Password)</label>
+            <input type="password" id="loginPassword" class="form-input" required autocomplete="current-password">
+          </div>
+          <div id="loginError" class="auth-error hidden"></div>
+          <button type="submit" class="btn-primary">دخول</button>
+        </form>
+
+        <!-- Register Form -->
+        <form id="registerForm" class="auth-form hidden">
+          <div class="form-group">
+            <label for="regUsername">اسم المستخدم (Username)</label>
+            <input type="text" id="regUsername" class="form-input" required minlength="3" placeholder="e.g. john_doe">
+          </div>
+          <div class="form-group">
+            <label for="regDisplayName">الاسم الظاهر (Display Name)</label>
+            <input type="text" id="regDisplayName" class="form-input" placeholder="e.g. John Doe">
+          </div>
+          <div class="form-group">
+            <label for="regPassword">كلمة المرور (Password)</label>
+            <input type="password" id="regPassword" class="form-input" required minlength="6">
+          </div>
+          <div class="form-group">
+            <label for="regLanguage">لغتك الأساسية (Language)</label>
+            <select id="regLanguage" class="form-select">
+              <option value="ar">العربية (Arabic)</option>
+              <option value="en">English (الإنجليزية)</option>
+            </select>
+          </div>
+          <div id="regError" class="auth-error hidden"></div>
+          <button type="submit" class="btn-primary">إنشاء الحساب</button>
+        </form>
+      </div>
+    </div>
+
+    <!-- Main App Container -->
+    <div id="appContainer" class="app-container hidden">
+      <!-- Sidebar -->
+      <aside class="sidebar">
+        <header class="sidebar-header">
+          <div class="user-profile-summary">
+            <div id="currentUserAvatar" class="user-avatar">U</div>
+            <div class="user-meta">
+              <h3 id="currentUserName">User</h3>
+              <p id="currentUserHandle">@user</p>
+            </div>
+          </div>
+          <div class="header-actions">
+            <button id="btnToggleLang" class="icon-btn" title="تغيير لغتك">
+              <span id="currentUserLangBadge" class="lang-badge">AR</span>
+            </button>
+            <a id="btnAdminPanel" href="/admin" class="icon-btn hidden" title="لوحة التحكم (Admin)">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
+                <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1Z"/>
+              </svg>
+            </a>
+            <button id="btnLogout" class="icon-btn" title="تسجيل الخروج">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                <polyline points="16 17 21 12 16 7"/>
+                <line x1="21" y1="12" x2="9" y2="12"/>
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        <!-- Search / Add Friend -->
+        <div class="search-bar-wrap">
+          <input type="text" id="addContactInput" class="search-input" placeholder="أضف مستخدم بالـ username...">
+          <button id="btnAddContact" class="btn-add">إضافة</button>
+        </div>
+
+        <!-- Contacts List -->
+        <ul id="contactsList" class="contacts-list">
+          <!-- Populated by JS -->
+        </ul>
+      </aside>
+
+      <!-- Main Chat / Stage -->
+      <main class="main-stage">
+        <!-- Empty State -->
+        <div id="emptyStage" class="empty-stage">
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+          <p>اختر جهة اتصال للبدء بمكالمة مترجمة فورياً</p>
+        </div>
+
+        <!-- Selected Contact Details -->
+        <div id="selectedStage" class="hidden" style="width: 100%; height: 100%; display: flex; flex-direction: column;">
+          <div class="stage-header">
+            <div class="stage-contact-details">
+              <div id="stageAvatar" class="user-avatar">C</div>
+              <div>
+                <h3 id="stageName">Contact</h3>
+                <p id="stageStatus">Offline</p>
+              </div>
+            </div>
+            <span id="stageLangBadge" class="lang-badge">AR</span>
+          </div>
+
+          <div class="stage-body">
+            <div class="card-call-action">
+              <h2 id="callCardTitle">مكالمة مترجمة مباشرة</h2>
+              <p id="callCardDesc">تحدث بلغتك، وسيسمع الطرف الآخر ترجمة فورية بصوت طبيعي.</p>
+              <button id="btnInitiateCall" class="btn-start-call">
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+                </svg>
+                <span>بدء المكالمة الآن</span>
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- In-Call Fullscreen Overlay -->
+        <div id="callOverlay" class="call-overlay hidden">
+          <div class="call-top">
+            <div id="callTimer" class="call-timer">00:00</div>
+            <div id="callStatusLine" class="call-status">جاري الاتصال...</div>
+          </div>
+
+          <div class="call-center">
+            <div class="pulsating-avatar-wrap">
+              <div class="pulsating-ring"></div>
+              <div id="callOverlayAvatar" class="call-big-avatar">C</div>
+            </div>
+            <h2 id="callOverlayName" class="call-participant-name">Contact</h2>
+          </div>
+
+          <!-- Captions -->
+          <div class="live-captions-box">
+            <p id="callCaptionText" class="caption-line">الترجمة الصوتية المباشرة مفعلة...</p>
+          </div>
+
+          <!-- Controls -->
+          <div class="call-bottom-controls">
+            <button id="btnCallMute" class="btn-ctrl mute" title="كتم الصوت">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+              </svg>
+            </button>
+            <button id="btnCallEnd" class="btn-ctrl hangup" title="إنهاء المكالمة">
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/>
+                <line x1="23" y1="1" x2="1" y2="23"/>
+              </svg>
+            </button>
+          </div>
+        </div>
+      </main>
+    </div>
+
+    <!-- Incoming Call Dialog -->
+    <div id="incomingModal" class="incoming-modal-backdrop hidden">
+      <div class="incoming-card">
+        <div id="incomingAvatar" class="incoming-avatar">C</div>
+        <h2 id="incomingCallerName">Contact</h2>
+        <p id="incomingCallerSub">مكالمة واردة ومترجمة...</p>
+        <div class="incoming-actions">
+          <button id="btnAcceptCall" class="btn-action-round btn-accept" title="قبول">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+            </svg>
+          </button>
+          <button id="btnDeclineCall" class="btn-action-round btn-decline" title="رفض">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <line x1="18" y1="6" x2="6" y2="18"/>
+              <line x1="6" y1="6" x2="18" y2="18"/>
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <audio id="appTranslatedAudio" autoplay playsinline></audio>
+    <audio id="appAudioPuller" muted playsinline hidden></audio>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>
