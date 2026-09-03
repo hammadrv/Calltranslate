@@ -205,6 +205,7 @@ const el = {
   audioUnlock: document.getElementById("audioUnlockButton"),
   audioUnlockLabel: document.getElementById("audioUnlockLabel"),
   audio: document.getElementById("translatedAudio"),
+  geminiAudioPuller: document.getElementById("geminiAudioPuller"),
   liveIndicator: document.querySelector(".live-indicator"),
 };
 
@@ -789,9 +790,20 @@ function playGeminiPcmChunk(float32Data, sampleRate = 24000) {
 
 function setupGeminiAudioCapture(remoteTrack, ws, isDirect = false) {
   try {
-    translationTrack = remoteTrack.clone();
-    const stream = new MediaStream([translationTrack]);
-    geminiAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    if (el.geminiAudioPuller) {
+      el.geminiAudioPuller.srcObject = new MediaStream([remoteTrack]);
+      el.geminiAudioPuller.muted = true;
+      void el.geminiAudioPuller.play().catch(() => {});
+    }
+
+    if (!geminiAudioContext || geminiAudioContext.state === "closed") {
+      geminiAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (geminiAudioContext.state === "suspended") {
+      void geminiAudioContext.resume().catch(() => {});
+    }
+
+    const stream = new MediaStream([remoteTrack]);
     geminiSourceNode = geminiAudioContext.createMediaStreamSource(stream);
     geminiProcessorNode = geminiAudioContext.createScriptProcessor(4096, 1, 1);
 
@@ -825,10 +837,6 @@ function setupGeminiAudioCapture(remoteTrack, ws, isDirect = false) {
     silentGain.gain.value = 0;
     geminiProcessorNode.connect(silentGain);
     silentGain.connect(geminiAudioContext.destination);
-
-    if (geminiAudioContext.state === "suspended") {
-      void geminiAudioContext.resume();
-    }
   } catch (_err) {
     failCall("translationFailed");
   }
@@ -855,8 +863,8 @@ async function startGeminiTranslation(remoteTrack, isRetry = false) {
     if (geminiSocket !== ws) return;
     if (isDirect) {
       const instruction = role === "ar"
-        ? "You are an instant speech-to-speech interpreter translating for a live phone call. Listen to incoming English speech and translate it immediately into natural, clear Arabic speech. Output ONLY the spoken Arabic translation. Do not answer the speaker, do not converse, and do not add commentary."
-        : "You are an instant speech-to-speech interpreter translating for a live phone call. Listen to incoming Arabic speech and translate it immediately into natural, clear English speech. Output ONLY the spoken English translation. Do not answer the speaker, do not converse, and do not add commentary.";
+        ? "You are a real-time speech-to-speech interpreter for a live phone call. Translate whatever the speaker says into natural, clear spoken Arabic immediately. Output only the spoken Arabic translation as audio. Do not reply or converse."
+        : "You are a real-time speech-to-speech interpreter for a live phone call. Translate whatever the speaker says into natural, clear spoken English immediately. Output only the spoken English translation as audio. Do not reply or converse.";
       const setupMsg = {
         setup: {
           model: `models/${geminiModel}`,
@@ -961,7 +969,9 @@ async function startGeminiTranslation(remoteTrack, isRetry = false) {
 function closeTranslation(preserveTimer = false) {
   if (translationTimer) clearTimeout(translationTimer);
   translationTimer = null;
-  if (translationTrack) translationTrack.stop();
+  if (translationTrack && translationTrack !== remoteTrack) {
+    try { translationTrack.stop(); } catch (_e) {}
+  }
   translationTrack = null;
   if (translationPeer) {
     translationPeer.ontrack = translationPeer.onconnectionstatechange = null;
@@ -1092,6 +1102,19 @@ async function join() {
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 },
       });
     } catch (error) { throw new Error(microphoneMessage(error)); }
+
+    if (!geminiPlaybackContext || geminiPlaybackContext.state === "closed") {
+      geminiPlaybackContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (geminiPlaybackContext.state === "suspended") {
+      void geminiPlaybackContext.resume().catch(() => {});
+    }
+    if (!geminiAudioContext || geminiAudioContext.state === "closed") {
+      geminiAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    if (geminiAudioContext.state === "suspended") {
+      void geminiAudioContext.resume().catch(() => {});
+    }
     setJoined(true, true);
     setStatus("waiting", "connecting");
     connectSocket();
