@@ -9,6 +9,13 @@ ORIGIN = "http://testserver"
 @pytest.fixture(autouse=True)
 def clean_db():
     db.init_db()
+    conn = db.get_connection()
+    with conn:
+        conn.execute("DELETE FROM friend_requests")
+        conn.execute("DELETE FROM contacts")
+        conn.execute("DELETE FROM sessions")
+        conn.execute("DELETE FROM users WHERE username != 'admin'")
+    conn.close()
 
 
 def test_user_registration_and_login():
@@ -65,32 +72,46 @@ def test_user_registration_and_login():
         assert lang_res.json()["language"] == "en"
 
 
-def test_contacts_management():
+def test_contacts_and_friend_requests():
     with TestClient(app.app, base_url=ORIGIN) as client:
         # Register two users
         u1 = client.post("/api/auth/register", json={"username": "user1", "password": "password123", "display_name": "User One"}).json()
         u2 = client.post("/api/auth/register", json={"username": "user2", "password": "password123", "display_name": "User Two"}).json()
 
         t1 = u1["token"]
+        t2 = u2["token"]
 
-        # Add user2 to user1's contacts
-        add_res = client.post("/api/contacts", headers={"Authorization": f"Bearer {t1}"}, json={"username": "user2"})
-        assert add_res.status_code == 200
-        assert add_res.json()["contact"]["username"] == "user2"
+        # user1 sends friend request to user2
+        req_res = client.post("/api/friend-requests", headers={"Authorization": f"Bearer {t1}"}, json={"username": "user2"})
+        assert req_res.status_code == 200
+        assert req_res.json()["status"] == "pending"
 
-        # List contacts
-        list_res = client.get("/api/contacts", headers={"Authorization": f"Bearer {t1}"})
-        assert list_res.status_code == 200
-        contacts = list_res.json()["contacts"]
-        assert any(c["username"] == "user2" for c in contacts)
+        # user2 checks incoming requests
+        inc_res = client.get("/api/friend-requests", headers={"Authorization": f"Bearer {t2}"})
+        assert inc_res.status_code == 200
+        requests = inc_res.json()["requests"]
+        assert len(requests) == 1
+        assert requests[0]["username"] == "user1"
+        req_id = requests[0]["request_id"]
 
-        # Delete contact
+        # user2 accepts request
+        acc_res = client.post(f"/api/friend-requests/{req_id}/accept", headers={"Authorization": f"Bearer {t2}"})
+        assert acc_res.status_code == 200
+        assert acc_res.json()["status"] == "accepted"
+
+        # Both user1 and user2 should now have each other in contacts
+        c1 = client.get("/api/contacts", headers={"Authorization": f"Bearer {t1}"}).json()["contacts"]
+        c2 = client.get("/api/contacts", headers={"Authorization": f"Bearer {t2}"}).json()["contacts"]
+        assert any(c["username"] == "user2" for c in c1)
+        assert any(c["username"] == "user1" for c in c2)
+
+        # user1 deletes user2 from contacts
         del_res = client.delete("/api/contacts/user2", headers={"Authorization": f"Bearer {t1}"})
         assert del_res.status_code == 200
 
-        # Verify removed
-        list_res2 = client.get("/api/contacts", headers={"Authorization": f"Bearer {t1}"})
-        assert not any(c["username"] == "user2" for c in list_res2.json()["contacts"])
+        # Verify removed for user1
+        c1_after = client.get("/api/contacts", headers={"Authorization": f"Bearer {t1}"}).json()["contacts"]
+        assert not any(c["username"] == "user2" for c in c1_after)
 
 
 def test_admin_dashboard_and_model_override():
@@ -144,11 +165,29 @@ def test_admin_dashboard_and_model_override():
 
 def test_user_hub_websocket():
     with TestClient(app.app, base_url=ORIGIN) as client:
-        u = client.post("/api/auth/register", json={"username": "wsuser", "password": "password123"}).json()
-        token = u["token"]
+        u1 = client.post("/api/auth/register", json={"username": "wsuser1", "password": "password123", "language": "ar"}).json()
+        u2 = client.post("/api/auth/register", json={"username": "wsuser2", "password": "password123", "language": "en"}).json()
+        token1 = u1["token"]
+        token2 = u2["token"]
 
-        with client.websocket_connect(f"/ws/user-hub?token={token}") as ws:
-            msg = ws.receive_json()
-            assert msg["type"] == "connected"
-            assert msg["username"] == "wsuser"
-            assert msg["model"] == "gemini-3.5-live-translate-preview"
+        with client.websocket_connect(f"/ws/user-hub?token={token1}") as ws1:
+            msg1 = ws1.receive_json()
+            assert msg1["type"] == "connected"
+
+            with client.websocket_connect(f"/ws/user-hub?token={token2}") as ws2:
+                msg2 = ws2.receive_json()
+                assert msg2["type"] == "connected"
+
+                # wsuser1 calls wsuser2
+                ws1.send_json({"type": "call_user", "target": "wsuser2"})
+
+                init_msg = ws1.receive_json()
+                assert init_msg["type"] == "call_initiating"
+                assert "access_token" in init_msg
+                assert init_msg["access_token"].startswith("ct_")
+
+                inc_msg = ws2.receive_json()
+                assert inc_msg["type"] == "incoming_call"
+                assert inc_msg["caller"] == "wsuser1"
+                assert "access_token" in inc_msg
+                assert inc_msg["access_token"].startswith("ct_")

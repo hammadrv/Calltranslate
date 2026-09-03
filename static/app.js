@@ -2,7 +2,6 @@
   let currentUser = null;
   let userToken = "";
   let hubSocket = null;
-  let selectedContact = null;
   let currentIncomingCall = null;
   let activeCallSession = null;
 
@@ -22,7 +21,8 @@
 
   // DOM Elements
   const dom = {
-    authOverlay: document.getElementById("authOverlay"),
+    statusBarClock: document.getElementById("statusBarClock"),
+    authBox: document.getElementById("authBox"),
     tabLogin: document.getElementById("tabLogin"),
     tabRegister: document.getElementById("tabRegister"),
     loginForm: document.getElementById("loginForm"),
@@ -35,7 +35,6 @@
     regPassword: document.getElementById("regPassword"),
     regLanguage: document.getElementById("regLanguage"),
     regError: document.getElementById("regError"),
-    appContainer: document.getElementById("appContainer"),
     currentUserAvatar: document.getElementById("currentUserAvatar"),
     currentUserName: document.getElementById("currentUserName"),
     currentUserHandle: document.getElementById("currentUserHandle"),
@@ -43,21 +42,16 @@
     btnToggleLang: document.getElementById("btnToggleLang"),
     btnAdminPanel: document.getElementById("btnAdminPanel"),
     btnLogout: document.getElementById("btnLogout"),
-    addContactInput: document.getElementById("addContactInput"),
-    btnAddContact: document.getElementById("btnAddContact"),
-    contactsList: document.getElementById("contactsList"),
-    emptyStage: document.getElementById("emptyStage"),
-    selectedStage: document.getElementById("selectedStage"),
-    stageAvatar: document.getElementById("stageAvatar"),
-    stageName: document.getElementById("stageName"),
-    stageStatus: document.getElementById("stageStatus"),
-    stageLangBadge: document.getElementById("stageLangBadge"),
-    btnInitiateCall: document.getElementById("btnInitiateCall"),
+    addFriendInput: document.getElementById("addFriendInput"),
+    btnAddFriend: document.getElementById("btnAddFriend"),
+    friendRequestsSection: document.getElementById("friendRequestsSection"),
+    friendRequestsList: document.getElementById("friendRequestsList"),
+    contactsContainer: document.getElementById("contactsContainer"),
     callOverlay: document.getElementById("callOverlay"),
-    callTimer: document.getElementById("callTimer"),
+    callTargetName: document.getElementById("callTargetName"),
     callStatusLine: document.getElementById("callStatusLine"),
+    callTimer: document.getElementById("callTimer"),
     callOverlayAvatar: document.getElementById("callOverlayAvatar"),
-    callOverlayName: document.getElementById("callOverlayName"),
     callCaptionText: document.getElementById("callCaptionText"),
     btnCallMute: document.getElementById("btnCallMute"),
     btnCallEnd: document.getElementById("btnCallEnd"),
@@ -71,11 +65,22 @@
     appAudioPuller: document.getElementById("appAudioPuller"),
   };
 
+  // Clock in status bar
+  function updateClock() {
+    if (!dom.statusBarClock) return;
+    const now = new Date();
+    const h = String(now.getHours()).padStart(2, "0");
+    const m = String(now.getMinutes()).padStart(2, "0");
+    dom.statusBarClock.textContent = `${h}:${m}`;
+  }
+  setInterval(updateClock, 10000);
+  updateClock();
+
   function authHeaders(headers = {}) {
     return { ...headers, Authorization: `Bearer ${userToken}`, "Content-Type": "application/json" };
   }
 
-  // --- Auth Flow ---
+  // --- Auth Tabs & Forms ---
   dom.tabLogin.addEventListener("click", () => {
     dom.tabLogin.classList.add("active");
     dom.tabRegister.classList.remove("active");
@@ -159,17 +164,14 @@
       });
       currentUser.language = newLang;
       dom.currentUserLangBadge.textContent = newLang.toUpperCase();
-      document.documentElement.lang = newLang;
-      document.documentElement.dir = newLang === "ar" ? "rtl" : "ltr";
     } catch (_e) {}
   });
 
-  // --- Initial App Load ---
+  // --- Session & App Initialization ---
   async function checkSession() {
     userToken = localStorage.getItem("calltranslate_usr_token") || "";
     if (!userToken) {
-      dom.authOverlay.classList.remove("hidden");
-      dom.appContainer.classList.add("hidden");
+      dom.authBox.classList.remove("hidden");
       return;
     }
     try {
@@ -180,22 +182,17 @@
       await initUserApp();
     } catch (_err) {
       localStorage.removeItem("calltranslate_usr_token");
-      dom.authOverlay.classList.remove("hidden");
-      dom.appContainer.classList.add("hidden");
+      dom.authBox.classList.remove("hidden");
     }
   }
 
   async function initUserApp() {
-    dom.authOverlay.classList.add("hidden");
-    dom.appContainer.classList.remove("hidden");
+    dom.authBox.classList.add("hidden");
 
-    // Populate user info
-    dom.currentUserName.textContent = currentUser.display_name;
+    dom.currentUserName.textContent = currentUser.display_name || currentUser.username;
     dom.currentUserHandle.textContent = `@${currentUser.username}`;
     dom.currentUserAvatar.textContent = (currentUser.display_name || currentUser.username).charAt(0).toUpperCase();
     dom.currentUserLangBadge.textContent = currentUser.language.toUpperCase();
-    document.documentElement.lang = currentUser.language;
-    document.documentElement.dir = currentUser.language === "ar" ? "rtl" : "ltr";
 
     if (currentUser.is_admin) {
       dom.btnAdminPanel.classList.remove("hidden");
@@ -205,9 +202,10 @@
 
     connectUserHub();
     await loadContacts();
+    await loadFriendRequests();
   }
 
-  // --- User Presence & Call Signaling WebSocket ---
+  // --- Real-time Signaling & Presence WebSocket ---
   function connectUserHub() {
     if (hubSocket) try { hubSocket.close(); } catch (_e) {}
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -229,20 +227,26 @@
       } else if (msg.type === "call_cancelled") {
         handleCallCancelled(msg);
       } else if (msg.type === "call_error") {
-        alert(msg.message || "Call error");
+        alert(msg.message || "خطأ أثناء الاتصال");
         closeCallOverlay();
+      } else if (msg.type === "friend_request_received") {
+        loadFriendRequests();
+      } else if (msg.type === "friend_request_accepted") {
+        loadContacts();
+        loadFriendRequests();
+      } else if (msg.type === "contact_removed") {
+        loadContacts();
       }
     };
 
     hubSocket.onclose = () => {
-      // Reconnect after 3s
       setTimeout(() => {
         if (userToken) connectUserHub();
       }, 3000);
     };
   }
 
-  // --- Contacts ---
+  // --- Contacts Management ---
   async function loadContacts() {
     try {
       const res = await fetch("/api/contacts", { headers: authHeaders() });
@@ -253,96 +257,173 @@
   }
 
   function renderContacts(contacts) {
-    dom.contactsList.innerHTML = "";
+    dom.contactsContainer.innerHTML = "";
     if (contacts.length === 0) {
-      dom.contactsList.innerHTML = `<li class="empty-contacts"><p>لا يوجد جهات اتصال بعد.<br>أضف أصدقاءك بالـ username أعلاه.</p></li>`;
+      dom.contactsContainer.innerHTML = `
+        <div class="empty-contacts-view">
+          <p>لا يوجد أصدقاء بعد.<br>أضف مستخدم بالـ username أعلاه لتبدأ المكالمات المترجمة!</p>
+        </div>
+      `;
       return;
     }
 
     contacts.forEach((c) => {
-      const li = document.createElement("li");
-      li.className = `contact-item ${selectedContact && selectedContact.username === c.username ? "active" : ""}`;
-      li.innerHTML = `
-        <div class="avatar-wrapper">
-          <div class="user-avatar">${(c.display_name || c.username).charAt(0).toUpperCase()}</div>
-          <span class="online-dot ${c.is_online ? "online" : ""}"></span>
+      const row = document.createElement("div");
+      row.className = "contact-row";
+      row.innerHTML = `
+        <div class="avatar-container">
+          <div class="user-avatar-sm">${(c.display_name || c.username).charAt(0).toUpperCase()}</div>
+          <span class="dot-online ${c.is_online ? "online" : ""}"></span>
         </div>
-        <div class="contact-info">
-          <div class="contact-name-row">
+        <div class="contact-details">
+          <div class="contact-top-line">
             <span class="contact-name">${c.display_name}</span>
-            <span class="lang-badge">${c.language.toUpperCase()}</span>
+            <span class="lang-pill">${c.language.toUpperCase()}</span>
           </div>
-          <span class="contact-username">@${c.username}</span>
+          <div class="contact-sub-line">
+            @${c.username} • <span style="color:${c.is_online ? 'var(--tg-green)' : 'var(--tg-text-secondary)'}">${c.is_online ? 'متصل' : 'غير متصل'}</span>
+          </div>
         </div>
-        <button class="btn-call-mini" title="اتصال">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
-          </svg>
-        </button>
+        <div class="contact-actions">
+          <button class="btn-contact-del" title="حذف الصديق">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <polyline points="3 6 5 6 21 6"/>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+              <line x1="10" y1="11" x2="10" y2="17"/>
+              <line x1="14" y1="11" x2="14" y2="17"/>
+            </svg>
+          </button>
+          <button class="btn-contact-call" title="بدء مكالمة مترجمة">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"/>
+            </svg>
+          </button>
+        </div>
       `;
 
-      li.addEventListener("click", (e) => {
-        if (e.target.closest(".btn-call-mini")) {
-          selectContact(c);
-          initiateCall(c);
-        } else {
-          selectContact(c);
-        }
+      // Call button click
+      row.querySelector(".btn-contact-call").addEventListener("click", (e) => {
+        e.stopPropagation();
+        initiateCall(c);
       });
 
-      dom.contactsList.appendChild(li);
+      // Delete button click
+      row.querySelector(".btn-contact-del").addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm(`هل أنت متأكد من حذف ${c.display_name} (@${c.username}) من قائمة الأصدقاء؟`)) return;
+        try {
+          const res = await fetch(`/api/contacts/${c.username}`, {
+            method: "DELETE",
+            headers: authHeaders(),
+          });
+          if (res.ok) {
+            await loadContacts();
+          }
+        } catch (_e) {}
+      });
+
+      dom.contactsContainer.appendChild(row);
     });
   }
 
-  function selectContact(contact) {
-    selectedContact = contact;
-    document.querySelectorAll(".contact-item").forEach((el) => el.classList.remove("active"));
-    dom.emptyStage.classList.add("hidden");
-    dom.selectedStage.classList.remove("hidden");
-
-    dom.stageAvatar.textContent = (contact.display_name || contact.username).charAt(0).toUpperCase();
-    dom.stageName.textContent = contact.display_name;
-    dom.stageStatus.textContent = contact.is_online ? "Online (متصل الآن)" : "Offline (غير متصل)";
-    dom.stageStatus.style.color = contact.is_online ? "var(--accent-green)" : "var(--text-secondary)";
-    dom.stageLangBadge.textContent = contact.language.toUpperCase();
-  }
-
-  dom.btnAddContact.addEventListener("click", async () => {
-    const username = dom.addContactInput.value.trim();
+  // --- Friend Requests ---
+  dom.btnAddFriend.addEventListener("click", async () => {
+    let username = dom.addFriendInput.value.trim();
+    if (username.startsWith("@")) username = username.substring(1);
     if (!username) return;
+
     try {
-      const res = await fetch("/api/contacts", {
+      const res = await fetch("/api/friend-requests", {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({ username }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.detail || "Failed to add contact");
-      dom.addContactInput.value = "";
+      if (!res.ok) throw new Error(data.detail || "تعذر إرسال طلب الصداقة");
+      alert(data.message || "تم إرسال طلب الصداقة!");
+      dom.addFriendInput.value = "";
       await loadContacts();
-      if (data.contact) selectContact(data.contact);
+      await loadFriendRequests();
     } catch (err) {
       alert(err.message);
     }
   });
 
-  dom.btnInitiateCall.addEventListener("click", () => {
-    if (selectedContact) initiateCall(selectedContact);
-  });
+  async function loadFriendRequests() {
+    try {
+      const res = await fetch("/api/friend-requests", { headers: authHeaders() });
+      if (!res.ok) return;
+      const data = await res.json();
+      const requests = data.requests || [];
+      if (requests.length === 0) {
+        dom.friendRequestsSection.classList.add("hidden");
+        return;
+      }
 
-  // --- Calling Logic ---
+      dom.friendRequestsSection.classList.remove("hidden");
+      dom.friendRequestsList.innerHTML = "";
+
+      requests.forEach((req) => {
+        const item = document.createElement("div");
+        item.className = "request-item";
+        item.innerHTML = `
+          <div class="request-info">
+            <div class="user-avatar-sm" style="width:30px;height:30px;font-size:0.8rem;">
+              ${(req.display_name || req.username).charAt(0).toUpperCase()}
+            </div>
+            <div>
+              <span style="font-weight:600;font-size:0.85rem;">${req.display_name}</span>
+              <span style="color:var(--tg-text-secondary);font-size:0.75rem;">(@${req.username})</span>
+            </div>
+          </div>
+          <div class="request-actions">
+            <button class="btn-req-accept" data-req-id="${req.request_id}">قبول</button>
+            <button class="btn-req-reject" data-req-id="${req.request_id}">رفض</button>
+          </div>
+        `;
+
+        item.querySelector(".btn-req-accept").addEventListener("click", async () => {
+          try {
+            const acceptRes = await fetch(`/api/friend-requests/${req.request_id}/accept`, {
+              method: "POST",
+              headers: authHeaders(),
+            });
+            if (acceptRes.ok) {
+              await loadContacts();
+              await loadFriendRequests();
+            }
+          } catch (_e) {}
+        });
+
+        item.querySelector(".btn-req-reject").addEventListener("click", async () => {
+          try {
+            const rejectRes = await fetch(`/api/friend-requests/${req.request_id}/reject`, {
+              method: "POST",
+              headers: authHeaders(),
+            });
+            if (rejectRes.ok) {
+              await loadFriendRequests();
+            }
+          } catch (_e) {}
+        });
+
+        dom.friendRequestsList.appendChild(item);
+      });
+    } catch (_e) {}
+  }
+
+  // --- Calling Flow ---
   function initiateCall(target) {
     if (!hubSocket || hubSocket.readyState !== WebSocket.OPEN) {
       alert("غير متصل بالسيرفر");
       return;
     }
-    // Unlock AudioContext on user gesture
     unlockAudioGraph();
 
+    dom.callTargetName.textContent = target.display_name;
     dom.callOverlayAvatar.textContent = (target.display_name || target.username).charAt(0).toUpperCase();
-    dom.callOverlayName.textContent = target.display_name;
     dom.callStatusLine.textContent = "جاري الاتصال والرنين...";
-    dom.callCaptionText.textContent = "بانتظار قبول المكالمة...";
+    dom.callCaptionText.textContent = "بانتظار قبول الطرف الآخر للمكالمة...";
     dom.callTimer.textContent = "00:00";
     dom.callOverlay.classList.remove("hidden");
 
@@ -394,9 +475,10 @@
       caller: callData.caller,
     }));
 
+    dom.callTargetName.textContent = callData.caller_name;
     dom.callOverlayAvatar.textContent = (callData.caller_name || callData.caller).charAt(0).toUpperCase();
-    dom.callOverlayName.textContent = callData.caller_name;
-    dom.callStatusLine.textContent = "جاري فتح المكالمة المترجمة...";
+    dom.callStatusLine.textContent = "جاري تفعيل المكالمة المترجمة...";
+    dom.callCaptionText.textContent = "جاري تشغيل محرك الترجمة...";
     dom.callTimer.textContent = "00:00";
     dom.callOverlay.classList.remove("hidden");
 
@@ -415,7 +497,7 @@
     currentIncomingCall = null;
   });
 
-  async function handleCallAccepted(msg) {
+  async function handleCallAccepted(_msg) {
     dom.callStatusLine.textContent = "تم قبول المكالمة! جاري الاتصال...";
     await startCallWebRTC();
   }
@@ -460,53 +542,10 @@
     activeCallSession = null;
   }
 
-  // --- AudioContext Unlocking ---
-  function unlockAudioGraph() {
-    try {
-      if (!geminiPlaybackContext || geminiPlaybackContext.state === "closed") {
-        geminiPlaybackContext = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (geminiPlaybackContext.state === "suspended") {
-        void geminiPlaybackContext.resume();
-      }
-      if (!geminiAudioContext || geminiAudioContext.state === "closed") {
-        geminiAudioContext = new (window.AudioContext || window.webkitAudioContext)();
-      }
-      if (geminiAudioContext.state === "suspended") {
-        void geminiAudioContext.resume();
-      }
-    } catch (_e) {}
-  }
-
-  function startRingingSound() {
-    try {
-      const ctx = new (window.AudioContext || window.webkitAudioContext)();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = "sine";
-      osc.frequency.setValueAtTime(440, ctx.currentTime);
-      gain.gain.setValueAtTime(0.1, ctx.currentTime);
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      ringOscillator = { ctx, osc };
-    } catch (_e) {}
-  }
-
-  function stopRingingSound() {
-    if (ringOscillator) {
-      try {
-        ringOscillator.osc.stop();
-        ringOscillator.ctx.close();
-      } catch (_e) {}
-      ringOscillator = null;
-    }
-  }
-
   // --- WebRTC Peer & Gemini Translation Engine ---
   async function startCallWebRTC() {
     if (!activeCallSession) return;
-    dom.callStatusLine.textContent = "جاري تفعيل الصوت والترجمة...";
+    dom.callStatusLine.textContent = "جاري طلب إذن الميكروفون...";
 
     try {
       localMediaStream = await navigator.mediaDevices.getUserMedia({
@@ -514,14 +553,14 @@
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
 
-      // Get Client Config (ICE servers & API keys)
       const cfgRes = await fetch("/api/client-config", {
         headers: { Authorization: `Bearer ${activeCallSession.accessToken}` },
       });
       const config = await cfgRes.json();
 
-      // Setup Peer Connection
-      rtcPeer = new RTCPeerConnection({ iceServers: config.ice_servers || [{ urls: ["stun:stun.l.google.com:19302"] }] });
+      rtcPeer = new RTCPeerConnection({
+        iceServers: config.ice_servers || [{ urls: ["stun:stun.l.google.com:19302"] }],
+      });
 
       localMediaStream.getAudioTracks().forEach((track) => {
         rtcPeer.addTrack(track, localMediaStream);
@@ -531,11 +570,9 @@
         if (event.track.kind !== "audio") return;
         dom.callStatusLine.textContent = "المكالمة متصلة (ترجمة حية)";
         startTimer();
-        // Start Translation
         startTranslation(event.track, config);
       };
 
-      // Connect Signaling Socket
       const proto = location.protocol === "https:" ? "wss:" : "ws:";
       const wsUrl = `${proto}//${location.host}/ws/${encodeURIComponent(activeCallSession.roomId)}/${encodeURIComponent(activeCallSession.role)}`;
       rtcSocket = new WebSocket(wsUrl, ["calltranslate", activeCallSession.accessToken]);
@@ -560,7 +597,7 @@
         } else if (msg.type === "candidate" && msg.candidate) {
           try { await rtcPeer.addIceCandidate(new RTCIceCandidate(msg.candidate)); } catch (_e) {}
         } else if (msg.type === "peer-left") {
-          dom.callStatusLine.textContent = "الطرف الآخر أنهى المكالمة.";
+          dom.callStatusLine.textContent = "أنهى الطرف الآخر المكالمة.";
           setTimeout(closeCallOverlay, 1500);
         }
       };
@@ -572,7 +609,6 @@
           rtcSocket.send(JSON.stringify({ type: "offer", sdp: offer }));
         }
       };
-
     } catch (err) {
       alert("تعذر الاتصال بالميكروفون: " + err.message);
       closeCallOverlay();
@@ -591,7 +627,6 @@
   }
 
   function startTranslation(remoteTrack, config) {
-    // 1. Hook puller audio element to force Chromium WebRTC audio decoding
     if (dom.appAudioPuller) {
       dom.appAudioPuller.srcObject = new MediaStream([remoteTrack]);
       dom.appAudioPuller.muted = true;
@@ -798,7 +833,44 @@
     }
   }
 
-  // Mute control
+  function unlockAudioGraph() {
+    try {
+      if (!geminiPlaybackContext || geminiPlaybackContext.state === "closed") {
+        geminiPlaybackContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (geminiPlaybackContext.state === "suspended") void geminiPlaybackContext.resume();
+      if (!geminiAudioContext || geminiAudioContext.state === "closed") {
+        geminiAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (geminiAudioContext.state === "suspended") void geminiAudioContext.resume();
+    } catch (_e) {}
+  }
+
+  function startRingingSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(440, ctx.currentTime);
+      gain.gain.setValueAtTime(0.1, ctx.currentTime);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      ringOscillator = { ctx, osc };
+    } catch (_e) {}
+  }
+
+  function stopRingingSound() {
+    if (ringOscillator) {
+      try {
+        ringOscillator.osc.stop();
+        ringOscillator.ctx.close();
+      } catch (_e) {}
+      ringOscillator = null;
+    }
+  }
+
   dom.btnCallMute.addEventListener("click", () => {
     if (!localMediaStream) return;
     const tracks = localMediaStream.getAudioTracks();
@@ -807,6 +879,5 @@
     dom.btnCallMute.classList.toggle("muted", currentlyEnabled);
   });
 
-  // Start app
   checkSession();
 })();

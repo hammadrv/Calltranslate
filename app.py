@@ -977,7 +977,68 @@ async def add_contact(data: ContactInput, request: Request) -> JSONResponse:
 async def delete_contact(username: str, request: Request) -> JSONResponse:
     user = get_current_user(request)
     db.remove_contact(user["id"], username)
+    await user_hub.send_to_user(
+        username.lower(),
+        {
+            "type": "contact_removed",
+            "by_username": user["username"],
+        },
+    )
     return JSONResponse({"status": "removed"})
+
+
+# Friend Requests Endpoints
+@app.get("/api/friend-requests")
+async def get_friend_requests(request: Request) -> JSONResponse:
+    user = get_current_user(request)
+    requests = db.list_incoming_friend_requests(user["id"])
+    return JSONResponse({"requests": requests})
+
+
+@app.post("/api/friend-requests")
+async def send_friend_request(data: ContactInput, request: Request) -> JSONResponse:
+    user = get_current_user(request)
+    try:
+        result = db.send_friend_request(user["id"], data.username)
+        # Real-time notify recipient if online
+        await user_hub.send_to_user(
+            data.username.lower(),
+            {
+                "type": "friend_request_received",
+                "from_username": user["username"],
+                "from_name": user["display_name"],
+            },
+        )
+        return JSONResponse(result)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/friend-requests/{request_id}/accept")
+async def accept_friend_request(request_id: int, request: Request) -> JSONResponse:
+    user = get_current_user(request)
+    try:
+        result = db.accept_friend_request(request_id, user["id"])
+        # Real-time notify the requester if online
+        if result.get("from_username"):
+            await user_hub.send_to_user(
+                result["from_username"].lower(),
+                {
+                    "type": "friend_request_accepted",
+                    "by_username": user["username"],
+                    "by_name": user["display_name"],
+                },
+            )
+        return JSONResponse({"status": "accepted", **result})
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@app.post("/api/friend-requests/{request_id}/reject")
+async def reject_friend_request(request_id: int, request: Request) -> JSONResponse:
+    user = get_current_user(request)
+    db.reject_friend_request(request_id, user["id"])
+    return JSONResponse({"status": "rejected"})
 
 
 # Admin Dashboard Endpoints
@@ -1658,8 +1719,8 @@ async def user_hub_ws(websocket: WebSocket) -> None:
                 else:
                     caller_role, callee_role = "ar", "en"
 
-                caller_grant = issue_grant(room_id, caller_role)
-                callee_grant = issue_grant(room_id, callee_role)
+                caller_token, _ = await room_store.issue_fixed_access(room_id, caller_role)
+                callee_token, _ = await room_store.issue_fixed_access(room_id, callee_role)
 
                 await safe_send(
                     websocket,
@@ -1667,7 +1728,7 @@ async def user_hub_ws(websocket: WebSocket) -> None:
                         "type": "call_initiating",
                         "room_id": room_id,
                         "role": caller_role,
-                        "access_token": caller_grant.token,
+                        "access_token": caller_token,
                         "target": target_user["username"],
                         "target_name": target_user["display_name"],
                         "target_language": target_user["language"],
@@ -1681,7 +1742,7 @@ async def user_hub_ws(websocket: WebSocket) -> None:
                         "type": "incoming_call",
                         "room_id": room_id,
                         "role": callee_role,
-                        "access_token": callee_grant.token,
+                        "access_token": callee_token,
                         "caller": user["username"],
                         "caller_name": user["display_name"],
                         "caller_language": user["language"],

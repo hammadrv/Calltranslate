@@ -70,6 +70,18 @@ def init_db() -> None:
             """)
 
             conn.execute("""
+                CREATE TABLE IF NOT EXISTS friend_requests (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    from_user_id INTEGER NOT NULL,
+                    to_user_id INTEGER NOT NULL,
+                    created_at INTEGER NOT NULL,
+                    FOREIGN KEY(from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    FOREIGN KEY(to_user_id) REFERENCES users(id) ON DELETE CASCADE,
+                    UNIQUE(from_user_id, to_user_id)
+                )
+            """)
+
+            conn.execute("""
                 CREATE TABLE IF NOT EXISTS sessions (
                     token TEXT PRIMARY KEY,
                     user_id INTEGER NOT NULL,
@@ -245,6 +257,118 @@ def add_contact(user_id: int, contact_username: str) -> dict[str, Any]:
         conn.close()
 
 
+def send_friend_request(from_user_id: int, to_username: str) -> dict[str, Any]:
+    clean_username = to_username.strip().lower()
+    conn = get_connection()
+    try:
+        to_row = conn.execute("SELECT id, username, display_name, language FROM users WHERE username = ?", (clean_username,)).fetchone()
+        if not to_row:
+            raise ValueError("المستخدم غير موجود")
+        if to_row["id"] == from_user_id:
+            raise ValueError("لا يمكنك إضافة نفسك كصديق")
+
+        already_friends = conn.execute(
+            "SELECT id FROM contacts WHERE user_id = ? AND contact_user_id = ?",
+            (from_user_id, to_row["id"]),
+        ).fetchone()
+        if already_friends:
+            raise ValueError("المستخدم موجود بالفعل في قائمة أصدقائك")
+
+        existing_req = conn.execute(
+            "SELECT id FROM friend_requests WHERE from_user_id = ? AND to_user_id = ?",
+            (from_user_id, to_row["id"]),
+        ).fetchone()
+        if existing_req:
+            raise ValueError("تم إرسال طلب صداقة مسبقاً وبانتظار الموافقة")
+
+        now = int(time.time())
+        reverse_req = conn.execute(
+            "SELECT id FROM friend_requests WHERE from_user_id = ? AND to_user_id = ?",
+            (to_row["id"], from_user_id),
+        ).fetchone()
+        if reverse_req:
+            with conn:
+                conn.execute("DELETE FROM friend_requests WHERE id = ?", (reverse_req["id"],))
+                conn.execute("INSERT OR IGNORE INTO contacts (user_id, contact_user_id, created_at) VALUES (?, ?, ?)", (from_user_id, to_row["id"], now))
+                conn.execute("INSERT OR IGNORE INTO contacts (user_id, contact_user_id, created_at) VALUES (?, ?, ?)", (to_row["id"], from_user_id, now))
+            return {
+                "status": "accepted",
+                "message": "أصبحتم أصدقاء الآن!",
+                "target_username": to_row["username"],
+                "target_name": to_row["display_name"],
+            }
+
+        with conn:
+            cursor = conn.execute(
+                "INSERT INTO friend_requests (from_user_id, to_user_id, created_at) VALUES (?, ?, ?)",
+                (from_user_id, to_row["id"], now),
+            )
+            return {
+                "status": "pending",
+                "request_id": cursor.lastrowid,
+                "message": "تم إرسال طلب الصداقة بنجاح!",
+                "target_username": to_row["username"],
+                "target_name": to_row["display_name"],
+            }
+    finally:
+        conn.close()
+
+
+def list_incoming_friend_requests(user_id: int) -> list[dict[str, Any]]:
+    conn = get_connection()
+    try:
+        rows = conn.execute("""
+            SELECT r.id AS request_id, u.id AS from_user_id, u.username, u.display_name, u.language, r.created_at
+            FROM friend_requests r
+            JOIN users u ON r.from_user_id = u.id
+            WHERE r.to_user_id = ?
+            ORDER BY r.created_at DESC
+        """, (user_id,)).fetchall()
+        return [
+            {
+                "request_id": r["request_id"],
+                "from_user_id": r["from_user_id"],
+                "username": r["username"],
+                "display_name": r["display_name"],
+                "language": r["language"],
+                "created_at": r["created_at"],
+            }
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+def accept_friend_request(request_id: int, user_id: int) -> dict[str, Any]:
+    conn = get_connection()
+    try:
+        req = conn.execute("SELECT from_user_id, to_user_id FROM friend_requests WHERE id = ?", (request_id,)).fetchone()
+        if not req or req["to_user_id"] != user_id:
+            raise ValueError("طلب الصداقة غير موجود أو تم إلغاؤه")
+        from_id = req["from_user_id"]
+        from_user = conn.execute("SELECT username, display_name, language FROM users WHERE id = ?", (from_id,)).fetchone()
+        now = int(time.time())
+        with conn:
+            conn.execute("DELETE FROM friend_requests WHERE id = ?", (request_id,))
+            conn.execute("INSERT OR IGNORE INTO contacts (user_id, contact_user_id, created_at) VALUES (?, ?, ?)", (user_id, from_id, now))
+            conn.execute("INSERT OR IGNORE INTO contacts (user_id, contact_user_id, created_at) VALUES (?, ?, ?)", (from_id, user_id, now))
+        return {
+            "from_username": from_user["username"] if from_user else "",
+            "from_name": from_user["display_name"] if from_user else "",
+        }
+    finally:
+        conn.close()
+
+
+def reject_friend_request(request_id: int, user_id: int) -> None:
+    conn = get_connection()
+    try:
+        with conn:
+            conn.execute("DELETE FROM friend_requests WHERE id = ? AND to_user_id = ?", (request_id, user_id))
+    finally:
+        conn.close()
+
+
 def remove_contact(user_id: int, contact_username: str) -> None:
     conn = get_connection()
     try:
@@ -252,7 +376,11 @@ def remove_contact(user_id: int, contact_username: str) -> None:
         if not contact_row:
             return
         with conn:
-            conn.execute("DELETE FROM contacts WHERE user_id = ? AND contact_user_id = ?", (user_id, contact_row["id"]))
+            conn.execute("""
+                DELETE FROM contacts 
+                WHERE (user_id = ? AND contact_user_id = ?) 
+                   OR (user_id = ? AND contact_user_id = ?)
+            """, (user_id, contact_row["id"], contact_row["id"], user_id))
     finally:
         conn.close()
 
