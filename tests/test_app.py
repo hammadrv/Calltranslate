@@ -13,6 +13,8 @@ import app as calltranslate
 
 
 ADMIN_TOKEN = "test-room-admin-token-with-enough-entropy"
+AR_LINK_TOKEN = "ar_" + "a" * 40
+EN_LINK_TOKEN = "en_" + "b" * 40
 ORIGIN = "https://calls.example.test"
 SDP_OFFER = (
     "v=0\r\no=- 1 1 IN IP4 127.0.0.1\r\ns=test\r\nt=0 0\r\n"
@@ -29,6 +31,8 @@ SDP_ANSWER = (
 @pytest.fixture(autouse=True)
 def isolated_state(monkeypatch):
     monkeypatch.setenv("ROOM_ADMIN_TOKEN", ADMIN_TOKEN)
+    monkeypatch.setenv("FIXED_AR_LINK_TOKEN", AR_LINK_TOKEN)
+    monkeypatch.setenv("FIXED_EN_LINK_TOKEN", EN_LINK_TOKEN)
     monkeypatch.setattr(calltranslate, "room_store", calltranslate.RoomAccessStore())
     monkeypatch.setattr(calltranslate, "hub", calltranslate.RoomHub())
     monkeypatch.setattr(calltranslate.settings, "allowed_origins", {ORIGIN})
@@ -65,6 +69,16 @@ def exchange_invite(client: TestClient, url: str) -> dict:
     return response.json()
 
 
+def fixed_access(client: TestClient, role: str) -> dict:
+    link_token = AR_LINK_TOKEN if role == "ar" else EN_LINK_TOKEN
+    response = client.post(
+        f"/api/fixed-access/{role}",
+        json={"token": link_token},
+    )
+    assert response.status_code == 200
+    return response.json()
+
+
 def websocket_path(access: dict) -> str:
     return f"/ws/{access['room_id']}/{access['role']}"
 
@@ -87,6 +101,120 @@ def test_home_and_security_headers() -> None:
     assert response.headers["content-security-policy"].count("api.openai.com") == 0
     assert "wss:" in response.headers["content-security-policy"]
     assert "max-age=31536000" in response.headers["strict-transport-security"]
+    assert "رابطان ثابتان" in response.text
+    assert AR_LINK_TOKEN not in response.text
+    assert EN_LINK_TOKEN not in response.text
+    assert "/join/ar/" not in response.text
+
+
+def test_fixed_routes_issue_fresh_role_scoped_access_without_exposing_secrets(
+    monkeypatch,
+) -> None:
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test-server-only")
+    with TestClient(calltranslate.app, base_url=ORIGIN) as client:
+        arabic_page = client.get(f"/join/ar/{AR_LINK_TOKEN}")
+        english_page = client.get(f"/join/en/{EN_LINK_TOKEN}")
+        access_after_pages = len(calltranslate.room_store._access)
+        guessable_page = client.get("/ar")
+        wrong_page = client.get(f"/join/ar/{'x' * 40}")
+        first_arabic = client.post(
+            "/api/fixed-access/ar", json={"token": AR_LINK_TOKEN}
+        )
+        second_arabic = client.post(
+            "/api/fixed-access/ar", json={"token": AR_LINK_TOKEN}
+        )
+        english = client.post(
+            "/api/fixed-access/en", json={"token": EN_LINK_TOKEN}
+        )
+        wrong_role_token = client.post(
+            "/api/fixed-access/en", json={"token": AR_LINK_TOKEN}
+        )
+        invalid_role = client.post(
+            "/api/fixed-access/fr", json={"token": AR_LINK_TOKEN}
+        )
+        config = client.get(
+            "/api/client-config",
+            headers=bearer(first_arabic.json()["access_token"]),
+        )
+
+    assert arabic_page.status_code == english_page.status_code == 200
+    assert arabic_page.headers["cache-control"] == "no-store"
+    assert AR_LINK_TOKEN not in arabic_page.text
+    assert access_after_pages == 0
+    assert guessable_page.status_code == 404
+    assert wrong_page.status_code == wrong_role_token.status_code == 403
+    assert invalid_role.status_code == 404
+    assert (
+        first_arabic.status_code
+        == second_arabic.status_code
+        == english.status_code
+        == 200
+    )
+    assert first_arabic.headers["cache-control"] == "no-store"
+    assert first_arabic.json()["room_id"] == calltranslate.settings.fixed_room_id
+    assert first_arabic.json()["role"] == second_arabic.json()["role"] == "ar"
+    assert english.json()["role"] == "en"
+    assert first_arabic.json()["access_token"] != second_arabic.json()["access_token"]
+    assert "sk-test-server-only" not in first_arabic.text
+    assert config.status_code == 200
+    assert config.json()["room_id"] == calltranslate.settings.fixed_room_id
+    assert "sk-test-server-only" not in config.text
+
+
+def test_fixed_routes_fail_closed_when_role_secret_is_not_configured(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("FIXED_AR_LINK_TOKEN")
+    with TestClient(calltranslate.app, base_url=ORIGIN) as client:
+        page = client.get(f"/join/ar/{AR_LINK_TOKEN}")
+        access = client.post(
+            "/api/fixed-access/ar",
+            json={"token": AR_LINK_TOKEN},
+        )
+
+    assert page.status_code == access.status_code == 503
+    assert page.json()["detail"]["code"] == "fixed_link_not_configured"
+    assert access.json()["detail"]["code"] == "fixed_link_not_configured"
+
+
+def test_fixed_routes_fail_closed_when_role_secrets_are_identical(monkeypatch) -> None:
+    monkeypatch.setenv("FIXED_EN_LINK_TOKEN", AR_LINK_TOKEN)
+    with TestClient(calltranslate.app, base_url=ORIGIN) as client:
+        arabic = client.get(f"/join/ar/{AR_LINK_TOKEN}")
+        english = client.get(f"/join/en/{AR_LINK_TOKEN}")
+
+    assert arabic.status_code == english.status_code == 503
+
+
+def test_fixed_room_allows_only_one_active_participant_per_role() -> None:
+    with TestClient(calltranslate.app, base_url=ORIGIN) as client:
+        first = fixed_access(client, "ar")
+        second = fixed_access(client, "ar")
+        english_access = fixed_access(client, "en")
+
+        with client.websocket_connect(
+            websocket_path(first), **websocket_options(first)
+        ) as arabic:
+            assert arabic.receive_json()["type"] == "welcome"
+
+            with pytest.raises(WebSocketDisconnect) as occupied:
+                with client.websocket_connect(
+                    websocket_path(second), **websocket_options(second)
+                ) as duplicate:
+                    duplicate.receive_json()
+            assert occupied.value.code == 4409
+
+            with client.websocket_connect(
+                websocket_path(english_access), **websocket_options(english_access)
+            ) as english:
+                assert english.receive_json()["peer_connected"] is True
+                assert arabic.receive_json() == {"type": "peer-joined"}
+
+        replacement = fixed_access(client, "ar")
+        with client.websocket_connect(
+            websocket_path(replacement), **websocket_options(replacement)
+        ) as arabic_again:
+            assert arabic_again.receive_json()["type"] == "welcome"
 
 
 def test_room_creation_requires_configured_admin_bearer(monkeypatch) -> None:

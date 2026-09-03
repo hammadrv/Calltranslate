@@ -92,10 +92,17 @@ const messages = {
 };
 
 const parts = location.pathname.split("/").filter(Boolean);
-const roomId = parts.length === 3 && parts[0] === "room" ? parts[1] : "";
-const role = parts.length === 3 ? parts[2] : "";
-const pathIsValid = /^[A-Za-z0-9_-]{12,80}$/.test(roomId) && ["ar", "en"].includes(role);
-const storageKey = pathIsValid ? `calltranslate.access.${roomId}.${role}` : "";
+const fixedRoute = parts.length === 3 && parts[0] === "join" && ["ar", "en"].includes(parts[1]);
+const fixedLinkToken = fixedRoute ? parts[2] : "";
+let roomId = parts.length === 3 && parts[0] === "room" ? parts[1] : "";
+const role = fixedRoute ? parts[1] : (parts.length === 3 ? parts[2] : "");
+const pathIsValid = (
+  (fixedRoute && /^[A-Za-z0-9_-]{32,128}$/.test(fixedLinkToken)) ||
+  (/^[A-Za-z0-9_-]{12,80}$/.test(roomId) && ["ar", "en"].includes(role))
+);
+const storageKey = pathIsValid
+  ? (fixedRoute ? `calltranslate.access.fixed.${role}` : `calltranslate.access.${roomId}.${role}`)
+  : "";
 
 function consumeInviteToken() {
   const fragment = location.hash.startsWith("#") ? location.hash.slice(1) : "";
@@ -291,6 +298,26 @@ async function exchangeInvite(value) {
   return body.access_token;
 }
 
+async function issueFixedAccess() {
+  const response = await fetch(`/api/fixed-access/${role}`, {
+    method: "POST",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    cache: "no-store",
+    body: JSON.stringify({ token: fixedLinkToken }),
+  });
+  if (!response.ok) throw new Error([401, 403, 404].includes(response.status) ? "badLink" : "generic");
+  const body = await response.json();
+  if (
+    typeof body.access_token !== "string" ||
+    body.access_token.length < 20 ||
+    typeof body.room_id !== "string" ||
+    !/^[A-Za-z0-9_-]{12,80}$/.test(body.room_id) ||
+    body.role !== role
+  ) throw new Error("generic");
+  roomId = body.room_id;
+  return body.access_token;
+}
+
 async function loadConfig() {
   const response = await fetch("/api/client-config", {
     cache: "no-store",
@@ -302,6 +329,13 @@ async function loadConfig() {
     throw new Error("generic");
   }
   const body = await response.json();
+  if (
+    typeof body.room_id !== "string" ||
+    !/^[A-Za-z0-9_-]{12,80}$/.test(body.room_id) ||
+    body.role !== role ||
+    (!fixedRoute && body.room_id !== roomId)
+  ) throw new Error("badLink");
+  roomId = body.room_id;
   if (!body.translation_configured) throw new Error("keyMissing");
   if (!Array.isArray(body.ice_servers)) body.ice_servers = [];
   return body;
@@ -566,7 +600,7 @@ function failCall(key, invalidate = false) {
   if (invalidate) clearStoredAccess();
   setJoined(false, true);
   el.joinLabel.textContent = t("rejoin");
-  el.join.disabled = invalidate;
+  el.join.disabled = invalidate && !fixedRoute;
   setStatus("ended");
   showError(messages.ar[key] ? key : "generic", key === "connectionFailed" ? "connection" : "general");
   closing = false;
@@ -598,6 +632,10 @@ async function join() {
   setStatus("mic", "connecting");
   try {
     if (typeof RTCPeerConnection === "undefined" || !navigator.mediaDevices?.getUserMedia) throw new Error(isSecureContext ? "unsupported" : "insecure");
+    if (!accessToken && fixedRoute) {
+      accessToken = await issueFixedAccess();
+      try { sessionStorage.setItem(storageKey, accessToken); } catch (_error) {}
+    }
     if (!accessToken) throw new Error("expired");
     if (!config) config = await loadConfig();
     try {
@@ -620,7 +658,7 @@ async function join() {
     setStatus("ready");
     showError(key);
   } finally {
-    el.join.disabled = !accessToken;
+    el.join.disabled = !accessToken && !fixedRoute;
   }
 }
 
@@ -670,6 +708,11 @@ async function initialize() {
         if (!(error instanceof Error) || error.message !== "expired") throw error;
         clearStoredAccess();
       }
+    }
+    if (fixedRoute) {
+      el.join.disabled = false;
+      setStatus("ready");
+      return;
     }
     if (!inviteToken) throw new Error("badLink");
     const value = inviteToken;

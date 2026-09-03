@@ -18,81 +18,19 @@
         <p class="eyebrow">CALLTRANSLATE</p>
         <h1>مكالمة واحدة، لغتان</h1>
         <p class="hero-copy">
-          أنشئ غرفة تجريبية لشخصين. يتحدث الأول بالعربية، ويتحدث الثاني
-          بالإنجليزية، وكل طرف يسمع الترجمة بلغته.
+          رابطان ثابتان وآمنان لشخصين. يتحدث الأول بالعربية، ويتحدث الثاني
+          بالإنجليزية، وكل طرف يسمع الترجمة بلغته. يمكن استخدام الرابطين
+          نفسيهما في كل مكالمة.
         </p>
-
-        <form class="room-form" id="createRoomForm">
-          <label class="field-label" for="adminToken">رمز إدارة الغرف</label>
-          <input
-            class="admin-token-input"
-            id="adminToken"
-            name="admin-token"
-            type="password"
-            required
-            autocomplete="off"
-            autocapitalize="none"
-            spellcheck="false"
-            aria-describedby="adminTokenHint"
-          >
-          <p class="field-hint" id="adminTokenHint">
-            يُستخدم الرمز لإنشاء الغرفة فقط ولا نضعه داخل روابط الدعوة.
-          </p>
-          <button class="primary-button large" id="createRoomButton" type="submit">
-            إنشاء رابطَي التجربة
-          </button>
-        </form>
         <p class="privacy-note">
           لا يحتفظ التطبيق بتسجيلات للمكالمة. يُعالج الصوت لحظياً لتوليد
-          الترجمة، وتنتهي صلاحية الرابطين تلقائياً.
+          الترجمة. الرابطان ثابتان، أما جلسة الدخول الداخلية فتتجدد تلقائياً.
         </p>
-        <p class="inline-message" id="lobbyMessage" role="status" aria-live="polite"></p>
-      </section>
-
-      <section
-        class="links-panel hidden"
-        id="linksPanel"
-        aria-labelledby="linksTitle"
-        tabindex="-1"
-      >
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">الغرفة جاهزة</p>
-            <h2 id="linksTitle">أرسل كل رابط إلى صاحبه</h2>
-          </div>
-          <span class="expiry-badge" id="expiryBadge"></span>
-        </div>
-
-        <article class="link-card arabic-card">
-          <div class="language-icon">ع</div>
-          <div class="link-content">
-            <h3>المتحدث بالعربية</h3>
-            <p>يتحدث بالعربية ويسمع رد الطرف الآخر مترجماً للعربية.</p>
-            <div class="link-row">
-              <input id="arabicLink" type="text" readonly aria-label="رابط المتحدث بالعربية">
-              <button class="copy-button" type="button" data-copy-target="arabicLink">نسخ</button>
-            </div>
-          </div>
-        </article>
-
-        <article class="link-card english-card" lang="en" dir="ltr">
-          <div class="language-icon">EN</div>
-          <div class="link-content">
-            <h3>English speaker</h3>
-            <p>Speaks English and hears the other person translated into English.</p>
-            <div class="link-row" dir="ltr">
-              <input id="englishLink" type="text" readonly aria-label="English speaker link">
-              <button class="copy-button" type="button" data-copy-target="englishLink">Copy</button>
-            </div>
-          </div>
-        </article>
-
-        <button class="secondary-button" id="newRoomButton" type="button">
-          إنشاء غرفة جديدة
-        </button>
+        <p class="privacy-note">
+          تم إعداد رابط خاص مختلف لكل طرف على السيرفر. لا نعرض الرابطين في
+          هذه الصفحة؛ افتح الرابط الآمن الذي وصلك مباشرة.
+        </p>
       </section>
     </main>
-
-    <script src="/static/lobby.js" defer></script>
   </body>
 </html>

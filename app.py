@@ -34,10 +34,12 @@ OPENAI_CLIENT_SECRET_URL = (
 OPENAI_TRANSLATION_CALL_URL = "https://api.openai.com/v1/realtime/translations/calls"
 ROOM_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{12,80}$")
 ACCESS_TOKEN_PATTERN = re.compile(r"^ct_[A-Za-z0-9_-]{32,100}$")
+FIXED_LINK_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{32,128}$")
 VALID_ROLES = {"ar", "en"}
 PEER_ROLE = {"ar": "en", "en": "ar"}
 TARGET_LANGUAGE = {"ar": "ar", "en": "en"}
 FORWARDED_SIGNAL_TYPES = {"offer", "answer", "ice-candidate", "hangup"}
+DEFAULT_FIXED_ROOM_ID = "calltranslate-main"
 
 logger = logging.getLogger("calltranslate")
 logging.basicConfig(
@@ -87,6 +89,16 @@ class Settings:
             )
 
         self.public_base_url = os.getenv("PUBLIC_BASE_URL", "").strip().rstrip("/")
+        configured_fixed_room_id = os.getenv(
+            "FIXED_ROOM_ID", DEFAULT_FIXED_ROOM_ID
+        ).strip()
+        if ROOM_ID_PATTERN.fullmatch(configured_fixed_room_id):
+            self.fixed_room_id = configured_fixed_room_id
+        else:
+            logger.warning(
+                "Invalid FIXED_ROOM_ID value; using %s", DEFAULT_FIXED_ROOM_ID
+            )
+            self.fixed_room_id = DEFAULT_FIXED_ROOM_ID
         configured_origins = os.getenv("ALLOWED_ORIGINS", "")
         self.allowed_origins = {
             origin
@@ -145,6 +157,22 @@ class Settings:
     def room_admin_token(self) -> str:
         return os.getenv("ROOM_ADMIN_TOKEN", "").strip()
 
+    def fixed_link_token(self, role: str) -> str:
+        env_names = {
+            "ar": "FIXED_AR_LINK_TOKEN",
+            "en": "FIXED_EN_LINK_TOKEN",
+        }
+        env_name = env_names.get(role)
+        if env_name is None:
+            return ""
+        value = os.getenv(env_name, "").strip()
+        if not FIXED_LINK_TOKEN_PATTERN.fullmatch(value):
+            return ""
+        peer_value = os.getenv(env_names[PEER_ROLE[role]], "").strip()
+        if value == peer_value:
+            return ""
+        return value
+
     def openai_api_key(self) -> str:
         value = os.getenv("OPENAI_API_KEY", "").strip()
         key_file = os.getenv("OPENAI_API_KEY_FILE", "").strip()
@@ -168,6 +196,10 @@ class RoomAccessRequest(BaseModel):
     room_id: str = Field(min_length=12, max_length=80)
     role: str = Field(min_length=2, max_length=2)
     token: str = Field(min_length=20, max_length=256)
+
+
+class FixedAccessRequest(BaseModel):
+    token: str = Field(min_length=32, max_length=128)
 
 
 @dataclass
@@ -265,6 +297,29 @@ class RoomAccessStore:
             )
             self._access[_token_digest(access_token)] = grant
             return access_token, replace(grant), None
+
+    async def issue_fixed_access(
+        self,
+        room_id: str,
+        role: str,
+        *,
+        now: float | None = None,
+    ) -> tuple[str, AccessGrant]:
+        """Issue a short-lived grant for a reusable, server-defined room route."""
+        if role not in VALID_ROLES or not valid_room_id(room_id):
+            raise ValueError("Invalid fixed-room access scope")
+
+        current_time = time.time() if now is None else now
+        access_token = "ct_" + secrets.token_urlsafe(32)
+        grant = AccessGrant(
+            room_id=room_id,
+            role=role,
+            expires_at=current_time + settings.access_ttl_seconds,
+        )
+        async with self._lock:
+            self._prune(current_time)
+            self._access[_token_digest(access_token)] = grant
+        return access_token, replace(grant)
 
     async def get_access(
         self, access_token: str, *, now: float | None = None
@@ -517,6 +572,25 @@ def require_admin(request: Request) -> None:
         raise _auth_error()
 
 
+def require_fixed_link(role: str, provided_token: str) -> None:
+    if role not in VALID_ROLES:
+        raise HTTPException(status_code=404, detail="Not found")
+    configured_token = settings.fixed_link_token(role)
+    if not configured_token:
+        raise HTTPException(
+            status_code=503,
+            detail={
+                "code": "fixed_link_not_configured",
+                "message": "Permanent participant links are not configured",
+            },
+        )
+    if (
+        not FIXED_LINK_TOKEN_PATTERN.fullmatch(provided_token)
+        or not hmac.compare_digest(configured_token, provided_token)
+    ):
+        raise HTTPException(status_code=403, detail="Permanent link is invalid")
+
+
 async def require_access(request: Request) -> tuple[str, AccessGrant]:
     access_token = _bearer_token(request)
     if access_token is None:
@@ -690,6 +764,15 @@ async def healthcheck() -> dict[str, str]:
     return {"status": "ok"}
 
 
+@app.get("/join/{role}/{link_token}", include_in_schema=False)
+async def fixed_call_page(role: str, link_token: str) -> FileResponse:
+    require_fixed_link(role, link_token)
+    return FileResponse(
+        STATIC_DIR / "call.html",
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
+
+
 @app.get("/room/{room_id}/{role}", include_in_schema=False)
 async def call_page(room_id: str, role: str) -> FileResponse:
     if (
@@ -737,6 +820,24 @@ async def create_room_access(payload: RoomAccessRequest) -> JSONResponse:
     if error or access_token is None or grant is None:
         raise HTTPException(status_code=403, detail="Invite link is invalid or expired")
 
+    return JSONResponse(
+        {
+            "access_token": access_token,
+            "expires_at": int(grant.expires_at),
+            "room_id": grant.room_id,
+            "role": grant.role,
+        },
+        headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
+    )
+
+
+@app.post("/api/fixed-access/{role}")
+async def create_fixed_access(role: str, payload: FixedAccessRequest) -> JSONResponse:
+    require_fixed_link(role, payload.token)
+    access_token, grant = await room_store.issue_fixed_access(
+        settings.fixed_room_id,
+        role,
+    )
     return JSONResponse(
         {
             "access_token": access_token,
