@@ -47,6 +47,30 @@
         </div>
         <time class="call-timer" id="callTimer" datetime="PT0S">00:00</time>
 
+        <div class="engine-selection" id="engineSelection" role="region" aria-label="Engine">
+          <div class="engine-toggle-group" role="tablist">
+            <button class="engine-btn active" id="engineOpenAI" type="button" role="tab" aria-selected="true">
+              <span class="engine-dot" aria-hidden="true"></span>
+              <span id="engineOpenAILabel">OpenAI</span>
+            </button>
+            <button class="engine-btn" id="engineGemini" type="button" role="tab" aria-selected="false">
+              <span class="engine-dot" aria-hidden="true"></span>
+              <span id="engineGeminiLabel">Google Gemini</span>
+            </button>
+          </div>
+
+          <div class="gemini-models hidden" id="geminiModelSelector">
+            <button class="model-pill active" id="modelPill25" type="button">
+              <span class="model-name">Gemini 2.5 Flash</span>
+              <span class="model-desc" id="model25Desc"></span>
+            </button>
+            <button class="model-pill" id="modelPill35" type="button">
+              <span class="model-name">Gemini 3.5 Live</span>
+              <span class="model-desc" id="model35Desc"></span>
+            </button>
+          </div>
+        </div>
+
         <button class="primary-button large join-button" id="joinButton" type="button">
           <span class="button-icon" aria-hidden="true">
             <svg viewBox="0 0 24 24">

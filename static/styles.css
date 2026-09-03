@@ -1350,6 +1350,122 @@ html[lang="en"] .participant-avatar {
   opacity: 1;
 }
 
+.engine-selection {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 0 16px;
+  width: 100%;
+  max-width: 320px;
+}
+
+.engine-selection.hidden {
+  display: none !important;
+}
+
+.engine-toggle-group {
+  display: inline-flex;
+  padding: 4px;
+  background: rgba(14, 28, 48, 0.7);
+  border: 1px solid rgba(82, 128, 184, 0.25);
+  border-radius: 999px;
+  backdrop-filter: blur(12px);
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.engine-btn {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: transparent;
+  color: #94adc7;
+  font-family: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 180ms ease;
+}
+
+.engine-btn:hover {
+  color: #e1edf8;
+}
+
+.engine-btn.active {
+  background: linear-gradient(135deg, rgba(46, 117, 237, 0.22), rgba(38, 199, 151, 0.22));
+  border-color: rgba(82, 168, 255, 0.4);
+  color: #ffffff;
+  box-shadow: 0 4px 16px rgba(46, 117, 237, 0.18);
+}
+
+.engine-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #506782;
+  transition: background 180ms ease;
+}
+
+.engine-btn.active .engine-dot {
+  background: #26c797;
+  box-shadow: 0 0 8px rgba(38, 199, 151, 0.8);
+}
+
+.gemini-models {
+  display: flex;
+  gap: 8px;
+  width: 100%;
+  justify-content: center;
+}
+
+.gemini-models.hidden {
+  display: none !important;
+}
+
+.model-pill {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(82, 128, 184, 0.2);
+  background: rgba(14, 28, 48, 0.5);
+  color: #94adc7;
+  cursor: pointer;
+  transition: all 180ms ease;
+  font-family: inherit;
+}
+
+.model-pill:hover {
+  border-color: rgba(82, 128, 184, 0.4);
+  color: #e1edf8;
+}
+
+.model-pill.active {
+  border-color: rgba(38, 199, 151, 0.5);
+  background: rgba(38, 199, 151, 0.1);
+  color: #ffffff;
+}
+
+.model-name {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #e1edf8;
+}
+
+.model-desc {
+  font-size: 0.72rem;
+  color: #8da4be;
+}
+
 .primary-button.large.join-button {
   display: inline-flex;
   min-width: min(100%, 260px);

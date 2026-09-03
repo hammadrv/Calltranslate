@@ -45,6 +45,10 @@ const messages = {
     soundBlocked: "المكالمة متصلة، لكن المتصفح منع تشغيل الصوت. المس الشاشة مرة واحدة.",
     playAudio: "تشغيل الصوت",
     generic: "حدث خطأ في الاتصال. حاول مجدداً.",
+    openaiEngine: "OpenAI",
+    geminiEngine: "Google Gemini",
+    model25Sub: "سريع وطبيعي",
+    model35Sub: "مخصص للترجمة الحية",
   },
   en: {
     pageTitle: "English translated call — Calltranslate",
@@ -90,6 +94,10 @@ const messages = {
     soundBlocked: "The browser blocked audio. Tap the screen once.",
     playAudio: "Play audio",
     generic: "A connection error occurred. Please try again.",
+    openaiEngine: "OpenAI",
+    geminiEngine: "Google Gemini",
+    model25Sub: "Fast & natural",
+    model35Sub: "Live translation specialist",
   },
 };
 
@@ -148,6 +156,17 @@ let sourceElapsed = null;
 let translatedElapsed = null;
 let visibleError = "";
 
+let currentEngine = "openai";
+try { currentEngine = localStorage.getItem("calltranslate_engine") || "openai"; } catch (_e) {}
+let geminiModel = "gemini-2.5-flash-native-audio-latest";
+try { geminiModel = localStorage.getItem("calltranslate_gemini_model") || "gemini-2.5-flash-native-audio-latest"; } catch (_e) {}
+let geminiSocket = null;
+let geminiAudioContext = null;
+let geminiSourceNode = null;
+let geminiProcessorNode = null;
+let geminiPlaybackContext = null;
+let geminiNextPlayTime = 0;
+
 const el = {
   home: document.getElementById("homeLink"),
   badge: document.getElementById("roleBadge"),
@@ -157,6 +176,16 @@ const el = {
   status: document.getElementById("statusLine"),
   timer: document.getElementById("callTimer"),
   orbit: document.getElementById("connectionOrbit"),
+  engineSelection: document.getElementById("engineSelection"),
+  engineOpenAI: document.getElementById("engineOpenAI"),
+  engineOpenAILabel: document.getElementById("engineOpenAILabel"),
+  engineGemini: document.getElementById("engineGemini"),
+  engineGeminiLabel: document.getElementById("engineGeminiLabel"),
+  geminiModelSelector: document.getElementById("geminiModelSelector"),
+  modelPill25: document.getElementById("modelPill25"),
+  model25Desc: document.getElementById("model25Desc"),
+  modelPill35: document.getElementById("modelPill35"),
+  model35Desc: document.getElementById("model35Desc"),
   join: document.getElementById("joinButton"),
   joinLabel: document.getElementById("joinButtonLabel"),
   controls: document.getElementById("callControls"),
@@ -213,12 +242,43 @@ function localize() {
   el.translatedLabel.textContent = t("translatedLabel");
   el.headset.textContent = t("headset");
   el.audioUnlockLabel.textContent = t("playAudio");
+  if (el.engineOpenAILabel) el.engineOpenAILabel.textContent = t("openaiEngine");
+  if (el.engineGeminiLabel) el.engineGeminiLabel.textContent = t("geminiEngine");
+  if (el.model25Desc) el.model25Desc.textContent = t("model25Sub");
+  if (el.model35Desc) el.model35Desc.textContent = t("model35Sub");
   el.source.lang = sourceLanguage;
   el.source.dir = sourceLanguage === "ar" ? "rtl" : "ltr";
   el.translated.lang = language;
   el.translated.dir = language === "ar" ? "rtl" : "ltr";
   setLive(false);
   resetTranscripts();
+}
+
+function setEngine(engine) {
+  currentEngine = engine;
+  try { localStorage.setItem("calltranslate_engine", engine); } catch (_e) {}
+  if (el.engineOpenAI) {
+    el.engineOpenAI.classList.toggle("active", engine === "openai");
+    el.engineOpenAI.setAttribute("aria-selected", String(engine === "openai"));
+  }
+  if (el.engineGemini) {
+    el.engineGemini.classList.toggle("active", engine === "gemini");
+    el.engineGemini.setAttribute("aria-selected", String(engine === "gemini"));
+  }
+  if (el.geminiModelSelector) {
+    el.geminiModelSelector.classList.toggle("hidden", engine !== "gemini");
+  }
+}
+
+function setGeminiModel(model) {
+  geminiModel = model;
+  try { localStorage.setItem("calltranslate_gemini_model", model); } catch (_e) {}
+  if (el.modelPill25) {
+    el.modelPill25.classList.toggle("active", model === "gemini-2.5-flash-native-audio-latest");
+  }
+  if (el.modelPill35) {
+    el.modelPill35.classList.toggle("active", model === "gemini-3.5-live-translate-preview");
+  }
 }
 
 function setStatus(key, orbit = "") {
@@ -250,6 +310,16 @@ function clearError(category = "") {
 }
 
 async function unlockAudio() {
+  if (geminiPlaybackContext && geminiPlaybackContext.state === "suspended") {
+    try {
+      await geminiPlaybackContext.resume();
+      clearError("sound");
+      return;
+    } catch (_error) {
+      showError("soundBlocked", "sound");
+      return;
+    }
+  }
   if (!el.audio.srcObject) return;
   try {
     await el.audio.play();
@@ -423,6 +493,9 @@ async function loadConfig() {
   ) throw new Error("badLink");
   roomId = body.room_id;
   if (!body.translation_configured) throw new Error("keyMissing");
+  if (!body.openai_configured && body.gemini_configured) {
+    setEngine("gemini");
+  }
   if (!Array.isArray(body.ice_servers)) body.ice_servers = [];
   return body;
 }
@@ -458,7 +531,7 @@ async function ensurePeer() {
     if (peer !== connection || event.track.kind !== "audio" || event.track.id === remoteTrackId) return;
     remoteTrackId = event.track.id;
     startRemoteActivity(event.track);
-    void startTranslation(event.track);
+    void beginTranslation(event.track);
   };
   connection.onconnectionstatechange = () => {
     if (peer !== connection) return;
@@ -466,7 +539,8 @@ async function ensurePeer() {
       if (reconnectTimer) clearTimeout(reconnectTimer);
       reconnectTimer = null;
       clearError("connection");
-      setStatus(translationPeer?.connectionState === "connected" ? "live" : "translating", translationPeer?.connectionState === "connected" ? "live" : "connecting");
+      const isTranslating = currentEngine === "gemini" ? Boolean(geminiSocket && geminiSocket.readyState === WebSocket.OPEN) : (translationPeer?.connectionState === "connected");
+      setStatus(isTranslating ? "live" : "translating", isTranslating ? "live" : "connecting");
     } else if (["disconnected", "failed"].includes(connection.connectionState)) {
       setStatus("retrying", "connecting");
       if (role === "ar" && !reconnectTimer) void makeOffer(true).catch(() => failCall("connectionFailed"));
@@ -588,7 +662,7 @@ async function startTranslation(remoteTrack, isRetry = false) {
       translationTimer = null;
       if (remoteTrack.readyState === "live" && peer?.connectionState === "connected") {
         translationRetryCount += 1;
-        void startTranslation(remoteTrack, true);
+        void beginTranslation(remoteTrack, true);
       } else {
         failCall("translationFailed");
       }
@@ -636,6 +710,170 @@ async function startTranslation(remoteTrack, isRetry = false) {
   }
 }
 
+function beginTranslation(remoteTrack, isRetry = false) {
+  if (currentEngine === "gemini") {
+    void startGeminiTranslation(remoteTrack, isRetry);
+  } else {
+    void startTranslation(remoteTrack, isRetry);
+  }
+}
+
+function downsampleTo16k(inputBuffer, inputSampleRate) {
+  if (inputSampleRate === 16000) {
+    const pcm = new Int16Array(inputBuffer.length);
+    for (let i = 0; i < inputBuffer.length; i++) {
+      const s = Math.max(-1, Math.min(1, inputBuffer[i]));
+      pcm[i] = s < 0 ? s * 0x8000 : s * 0x7FFF;
+    }
+    return pcm.buffer;
+  }
+  const ratio = inputSampleRate / 16000;
+  const newLength = Math.round(inputBuffer.length / ratio);
+  const pcm = new Int16Array(newLength);
+  for (let i = 0; i < newLength; i++) {
+    const srcIndex = i * ratio;
+    const i0 = Math.floor(srcIndex);
+    const i1 = Math.min(i0 + 1, inputBuffer.length - 1);
+    const fraction = srcIndex - i0;
+    const s = inputBuffer[i0] + (inputBuffer[i1] - inputBuffer[i0]) * fraction;
+    const clamped = Math.max(-1, Math.min(1, s));
+    pcm[i] = clamped < 0 ? clamped * 0x8000 : clamped * 0x7FFF;
+  }
+  return pcm.buffer;
+}
+
+function arrayBufferToBase64(buffer) {
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.byteLength; i++) {
+    binary += String.fromCharCode(bytes[i]);
+  }
+  return btoa(binary);
+}
+
+function base64ToFloat32(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+  const int16 = new Int16Array(bytes.buffer);
+  const float32 = new Float32Array(int16.length);
+  for (let i = 0; i < int16.length; i++) {
+    float32[i] = int16[i] / (int16[i] < 0 ? 0x8000 : 0x7FFF);
+  }
+  return float32;
+}
+
+function playGeminiPcmChunk(float32Data, sampleRate = 24000) {
+  if (!geminiPlaybackContext || geminiPlaybackContext.state === "closed") {
+    geminiPlaybackContext = new (window.AudioContext || window.webkitAudioContext)();
+  }
+  if (geminiPlaybackContext.state === "suspended") {
+    void geminiPlaybackContext.resume().catch(() => showError("soundBlocked", "sound"));
+  }
+  const audioBuffer = geminiPlaybackContext.createBuffer(1, float32Data.length, sampleRate);
+  audioBuffer.copyToChannel(float32Data, 0);
+
+  const source = geminiPlaybackContext.createBufferSource();
+  source.buffer = audioBuffer;
+  source.connect(geminiPlaybackContext.destination);
+
+  const now = geminiPlaybackContext.currentTime;
+  if (geminiNextPlayTime < now) {
+    geminiNextPlayTime = now + 0.05;
+  }
+  source.start(geminiNextPlayTime);
+  geminiNextPlayTime += audioBuffer.duration;
+}
+
+function setupGeminiAudioCapture(remoteTrack, ws) {
+  try {
+    translationTrack = remoteTrack.clone();
+    const stream = new MediaStream([translationTrack]);
+    geminiAudioContext = new (window.AudioContext || window.webkitAudioContext)();
+    geminiSourceNode = geminiAudioContext.createMediaStreamSource(stream);
+    geminiProcessorNode = geminiAudioContext.createScriptProcessor(4096, 1, 1);
+
+    geminiProcessorNode.onaudioprocess = (e) => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      const inputData = e.inputBuffer.getChannelData(0);
+      const pcmBuffer = downsampleTo16k(inputData, geminiAudioContext.sampleRate);
+      const base64 = arrayBufferToBase64(pcmBuffer);
+      ws.send(JSON.stringify({
+        type: "audio",
+        data: base64,
+        rate: 16000,
+      }));
+    };
+
+    geminiSourceNode.connect(geminiProcessorNode);
+    const silentGain = geminiAudioContext.createGain();
+    silentGain.gain.value = 0;
+    geminiProcessorNode.connect(silentGain);
+    silentGain.connect(geminiAudioContext.destination);
+
+    if (geminiAudioContext.state === "suspended") {
+      void geminiAudioContext.resume();
+    }
+  } catch (_err) {
+    failCall("translationFailed");
+  }
+}
+
+async function startGeminiTranslation(remoteTrack, isRetry = false) {
+  if (!isRetry) translationRetryCount = 0;
+  const generation = ++translationGeneration;
+  closeTranslation(true);
+  clearError();
+  resetTranscripts();
+  setStatus("translating", "connecting");
+
+  const protocol = location.protocol === "https:" ? "wss:" : "ws:";
+  const wsUrl = `${protocol}//${location.host}/ws/gemini-live/${encodeURIComponent(roomId)}/${encodeURIComponent(role)}?token=${encodeURIComponent(accessToken)}&model=${encodeURIComponent(geminiModel)}`;
+
+  const ws = new WebSocket(wsUrl, ["calltranslate", accessToken]);
+  geminiSocket = ws;
+
+  ws.onmessage = (event) => {
+    if (geminiSocket !== ws) return;
+    let msg;
+    try { msg = JSON.parse(event.data); } catch (_e) { return; }
+
+    if (msg.type === "ready") {
+      setLive(true);
+      setStatus("live", "live");
+      startTimer();
+      setupGeminiAudioCapture(remoteTrack, ws);
+    } else if (msg.type === "audio" && msg.data) {
+      try {
+        const float32 = base64ToFloat32(msg.data);
+        playGeminiPcmChunk(float32, 24000);
+      } catch (_e) {}
+    } else if (msg.type === "transcript") {
+      appendTranscript("translated", msg.text);
+    } else if (msg.type === "interrupted") {
+      if (geminiPlaybackContext) {
+        geminiNextPlayTime = geminiPlaybackContext.currentTime;
+      }
+    } else if (msg.type === "error") {
+      failCall("translationFailed");
+    }
+  };
+
+  ws.onerror = () => {
+    if (geminiSocket === ws) failCall("translationFailed");
+  };
+
+  ws.onclose = (event) => {
+    if (geminiSocket !== ws) return;
+    geminiSocket = null;
+    if (event.code === 4409) failCall("busy");
+    else if ([4401, 4403, 4408].includes(event.code)) failCall("expired", true);
+    else if (event.code !== 1000) failCall("translationFailed");
+  };
+}
+
 function closeTranslation(preserveTimer = false) {
   if (translationTimer) clearTimeout(translationTimer);
   translationTimer = null;
@@ -646,6 +884,31 @@ function closeTranslation(preserveTimer = false) {
     translationPeer.close();
   }
   translationPeer = null;
+
+  if (geminiSocket) {
+    geminiSocket.onopen = geminiSocket.onmessage = geminiSocket.onerror = geminiSocket.onclose = null;
+    try { geminiSocket.close(); } catch (_e) {}
+    geminiSocket = null;
+  }
+  if (geminiProcessorNode) {
+    geminiProcessorNode.onaudioprocess = null;
+    try { geminiProcessorNode.disconnect(); } catch (_e) {}
+    geminiProcessorNode = null;
+  }
+  if (geminiSourceNode) {
+    try { geminiSourceNode.disconnect(); } catch (_e) {}
+    geminiSourceNode = null;
+  }
+  if (geminiAudioContext) {
+    void geminiAudioContext.close().catch(() => {});
+    geminiAudioContext = null;
+  }
+  if (geminiPlaybackContext) {
+    void geminiPlaybackContext.close().catch(() => {});
+    geminiPlaybackContext = null;
+  }
+  geminiNextPlayTime = 0;
+
   el.audio.pause();
   el.audio.srcObject = null;
   setLive(false);
@@ -726,6 +989,19 @@ async function join() {
     }
     if (!accessToken) throw new Error("expired");
     if (!config) config = await loadConfig();
+    if (currentEngine === "openai" && !config.openai_configured) {
+      if (config.gemini_configured) {
+        setEngine("gemini");
+      } else {
+        throw new Error("keyMissing");
+      }
+    } else if (currentEngine === "gemini" && !config.gemini_configured) {
+      if (config.openai_configured) {
+        setEngine("openai");
+      } else {
+        throw new Error("keyMissing");
+      }
+    }
     try {
       localStream = await navigator.mediaDevices.getUserMedia({
         video: false,
@@ -776,6 +1052,8 @@ function leave() {
 
 async function initialize() {
   localize();
+  setEngine(currentEngine);
+  setGeminiModel(geminiModel);
   setStatus("loading");
   el.join.disabled = true;
   if (!pathIsValid) {
@@ -822,7 +1100,14 @@ el.join.addEventListener("click", join);
 el.mute.addEventListener("click", toggleMute);
 el.leave.addEventListener("click", leave);
 el.audioUnlock.addEventListener("click", unlockAudio);
+if (el.engineOpenAI) el.engineOpenAI.addEventListener("click", () => setEngine("openai"));
+if (el.engineGemini) el.engineGemini.addEventListener("click", () => setEngine("gemini"));
+if (el.modelPill25) el.modelPill25.addEventListener("click", () => setGeminiModel("gemini-2.5-flash-native-audio-latest"));
+if (el.modelPill35) el.modelPill35.addEventListener("click", () => setGeminiModel("gemini-3.5-live-translate-preview"));
 document.addEventListener("click", () => {
+  if (geminiPlaybackContext && geminiPlaybackContext.state === "suspended") {
+    void geminiPlaybackContext.resume().then(() => clearError("sound")).catch(() => {});
+  }
   if (el.audio.srcObject && el.audio.paused) void el.audio.play().then(() => clearError("sound")).catch(() => {});
 });
 document.addEventListener("visibilitychange", () => {

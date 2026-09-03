@@ -18,7 +18,14 @@ from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode, urlsplit
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 import httpx
+import websockets
 from fastapi import FastAPI, HTTPException, Request, WebSocket, WebSocketDisconnect
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
@@ -32,6 +39,14 @@ OPENAI_CLIENT_SECRET_URL = (
     "https://api.openai.com/v1/realtime/translations/client_secrets"
 )
 OPENAI_TRANSLATION_CALL_URL = "https://api.openai.com/v1/realtime/translations/calls"
+GEMINI_BIDI_WS_URL = (
+    "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent"
+)
+GEMINI_MODELS = {
+    "gemini-2.5-flash-native-audio-latest": "models/gemini-2.5-flash-native-audio-latest",
+    "gemini-3.5-live-translate-preview": "models/gemini-3.5-live-translate-preview",
+}
+DEFAULT_GEMINI_MODEL = "gemini-2.5-flash-native-audio-latest"
 ROOM_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]{12,80}$")
 ACCESS_TOKEN_PATTERN = re.compile(r"^ct_[A-Za-z0-9_-]{32,100}$")
 FIXED_LINK_TOKEN_PATTERN = re.compile(r"^[A-Za-z0-9_-]{32,128}$")
@@ -186,6 +201,32 @@ class Settings:
 
         if value.startswith("OPENAI_API_KEY="):
             value = value.removeprefix("OPENAI_API_KEY=").strip()
+        return value
+
+    def gemini_api_key(self) -> str:
+        value = os.getenv("GEMINI_API_KEY", "").strip()
+        key_file = os.getenv("GEMINI_API_KEY_FILE", "").strip()
+
+        if not value and key_file:
+            try:
+                value = Path(key_file).read_text(encoding="utf-8").strip()
+            except OSError as exc:
+                logger.error("Unable to read GEMINI_API_KEY_FILE: %s", exc)
+                return ""
+
+        if not value:
+            for candidate in ("gimini key.txt", "gemini_key.txt", "gemini key.txt"):
+                candidate_path = BASE_DIR / candidate
+                if candidate_path.is_file():
+                    try:
+                        value = candidate_path.read_text(encoding="utf-8").strip()
+                        if value:
+                            break
+                    except OSError:
+                        pass
+
+        if value.startswith("GEMINI_API_KEY="):
+            value = value.removeprefix("GEMINI_API_KEY=").strip()
         return value
 
 
@@ -852,12 +893,16 @@ async def create_fixed_access(role: str, payload: FixedAccessRequest) -> JSONRes
 @app.get("/api/client-config")
 async def client_config(request: Request) -> JSONResponse:
     _, grant = await require_access(request)
+    has_openai = bool(settings.openai_api_key())
+    has_gemini = bool(settings.gemini_api_key())
     return JSONResponse(
         {
             "room_id": grant.room_id,
             "role": grant.role,
             "ice_servers": ice_servers(grant.room_id),
-            "translation_configured": bool(settings.openai_api_key()),
+            "translation_configured": has_openai or has_gemini,
+            "openai_configured": has_openai,
+            "gemini_configured": has_gemini,
             "access_expires_at": int(grant.expires_at),
             "max_call_seconds": settings.max_call_seconds,
         },
@@ -1025,6 +1070,168 @@ async def create_translation_call(request: Request) -> Response:
         media_type="application/sdp",
         headers={"Cache-Control": "no-store", "Pragma": "no-cache"},
     )
+
+
+@app.websocket("/ws/gemini-live/{room_id}/{role}")
+async def gemini_live_socket(websocket: WebSocket, room_id: str, role: str) -> None:
+    if not websocket_origin_allowed(websocket):
+        await websocket.close(code=4403, reason="Origin is not allowed")
+        return
+
+    access_token = websocket.query_params.get("token") or websocket_access_token(websocket)
+    if not access_token or not ACCESS_TOKEN_PATTERN.fullmatch(access_token):
+        await websocket.close(code=4401, reason="Missing or invalid access token")
+        return
+
+    access = await room_store.get_access(access_token)
+    if (
+        access is None
+        or access.room_id != room_id
+        or access.role != role
+        or role not in VALID_ROLES
+        or not valid_room_id(room_id)
+    ):
+        await websocket.close(code=4403, reason="Access token is invalid or expired")
+        return
+
+    gemini_key = settings.gemini_api_key()
+    if not gemini_key:
+        await websocket.close(code=4503, reason="Gemini API is not configured on server")
+        return
+
+    model_param = websocket.query_params.get("model", DEFAULT_GEMINI_MODEL)
+    model_name = GEMINI_MODELS.get(model_param, GEMINI_MODELS[DEFAULT_GEMINI_MODEL])
+
+    subprotocol = "calltranslate" if "calltranslate" in websocket.scope.get("subprotocols", []) else None
+    await websocket.accept(subprotocol=subprotocol)
+
+    gemini_url = f"{GEMINI_BIDI_WS_URL}?key={gemini_key}"
+
+    if role == "ar":
+        instruction = (
+            "You are an instant speech-to-speech interpreter translating for a live phone call. "
+            "Listen to incoming English speech and translate it immediately into natural, clear Arabic speech. "
+            "Output ONLY the spoken Arabic translation. "
+            "Do not answer the speaker, do not converse, and do not add commentary."
+        )
+        voice_name = "Aoede"
+    else:
+        instruction = (
+            "You are an instant speech-to-speech interpreter translating for a live phone call. "
+            "Listen to incoming Arabic speech and translate it immediately into natural, clear English speech. "
+            "Output ONLY the spoken English translation. "
+            "Do not answer the speaker, do not converse, and do not add commentary."
+        )
+        voice_name = "Puck"
+
+    setup_payload = {
+        "setup": {
+            "model": model_name,
+            "generationConfig": {
+                "responseModalities": ["AUDIO"],
+                "speechConfig": {
+                    "voiceConfig": {
+                        "prebuiltVoiceConfig": {
+                            "voiceName": voice_name
+                        }
+                    }
+                }
+            },
+            "systemInstruction": {
+                "parts": [{"text": instruction}]
+            }
+        }
+    }
+
+    try:
+        async with websockets.connect(
+            gemini_url,
+            open_timeout=15,
+            close_timeout=5,
+            ping_interval=20,
+            ping_timeout=20,
+            max_size=4 * 1024 * 1024,
+        ) as gemini_ws:
+            await gemini_ws.send(json.dumps(setup_payload))
+            init_response = await gemini_ws.recv()
+            if isinstance(init_response, bytes):
+                init_response = init_response.decode("utf-8")
+            init_data = json.loads(init_response)
+            if "setupComplete" not in init_data:
+                logger.warning("Gemini setup error: %s", init_response)
+                await websocket.send_json({"type": "error", "message": "Gemini setup failed"})
+                await websocket.close(code=1011, reason="Gemini setup failed")
+                return
+
+            await websocket.send_json({"type": "ready"})
+
+            async def client_to_gemini() -> None:
+                while True:
+                    data = await websocket.receive_text()
+                    msg = json.loads(data)
+                    msg_type = msg.get("type", "audio")
+                    if msg_type == "audio":
+                        audio_b64 = msg.get("data")
+                        rate = msg.get("rate", 16000)
+                        if audio_b64:
+                            gemini_msg = {
+                                "realtimeInput": {
+                                    "mediaChunks": [
+                                        {
+                                            "mimeType": f"audio/pcm;rate={rate}",
+                                            "data": audio_b64,
+                                        }
+                                    ]
+                                }
+                            }
+                            await gemini_ws.send(json.dumps(gemini_msg))
+
+            async def gemini_to_client() -> None:
+                async for raw_msg in gemini_ws:
+                    if isinstance(raw_msg, bytes):
+                        raw_msg = raw_msg.decode("utf-8")
+                    resp = json.loads(raw_msg)
+                    server_content = resp.get("serverContent")
+                    if server_content:
+                        model_turn = server_content.get("modelTurn")
+                        if model_turn:
+                            for part in model_turn.get("parts", []):
+                                if "inlineData" in part:
+                                    inline = part["inlineData"]
+                                    await websocket.send_json({
+                                        "type": "audio",
+                                        "data": inline.get("data"),
+                                        "mimeType": inline.get("mimeType", "audio/pcm;rate=24000"),
+                                    })
+                                if "text" in part:
+                                    await websocket.send_json({
+                                        "type": "transcript",
+                                        "role": "translated",
+                                        "text": part["text"],
+                                    })
+                        if server_content.get("interrupted"):
+                            await websocket.send_json({"type": "interrupted"})
+                        if server_content.get("turnComplete"):
+                            await websocket.send_json({"type": "turnComplete"})
+
+            done, pending = await asyncio.wait(
+                [
+                    asyncio.create_task(client_to_gemini()),
+                    asyncio.create_task(gemini_to_client()),
+                ],
+                return_when=asyncio.FIRST_COMPLETED,
+            )
+            for task in pending:
+                task.cancel()
+
+    except WebSocketDisconnect:
+        pass
+    except Exception as exc:
+        logger.warning("Gemini Live session error: %s", exc)
+        try:
+            await websocket.close(code=1011, reason="Gemini connection error")
+        except Exception:
+            pass
 
 
 @app.websocket("/ws/{room_id}/{role}")
