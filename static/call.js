@@ -787,7 +787,7 @@ function playGeminiPcmChunk(float32Data, sampleRate = 24000) {
   geminiNextPlayTime += audioBuffer.duration;
 }
 
-function setupGeminiAudioCapture(remoteTrack, ws) {
+function setupGeminiAudioCapture(remoteTrack, ws, isDirect = false) {
   try {
     translationTrack = remoteTrack.clone();
     const stream = new MediaStream([translationTrack]);
@@ -800,11 +800,24 @@ function setupGeminiAudioCapture(remoteTrack, ws) {
       const inputData = e.inputBuffer.getChannelData(0);
       const pcmBuffer = downsampleTo16k(inputData, geminiAudioContext.sampleRate);
       const base64 = arrayBufferToBase64(pcmBuffer);
-      ws.send(JSON.stringify({
-        type: "audio",
-        data: base64,
-        rate: 16000,
-      }));
+      if (isDirect) {
+        ws.send(JSON.stringify({
+          realtimeInput: {
+            mediaChunks: [
+              {
+                mimeType: "audio/pcm;rate=16000",
+                data: base64,
+              },
+            ],
+          },
+        }));
+      } else {
+        ws.send(JSON.stringify({
+          type: "audio",
+          data: base64,
+          rate: 16000,
+        }));
+      }
     };
 
     geminiSourceNode.connect(geminiProcessorNode);
@@ -829,35 +842,96 @@ async function startGeminiTranslation(remoteTrack, isRetry = false) {
   resetTranscripts();
   setStatus("translating", "connecting");
 
+  const isDirect = Boolean(config?.gemini_key);
   const protocol = location.protocol === "https:" ? "wss:" : "ws:";
-  const wsUrl = `${protocol}//${location.host}/ws/gemini-live/${encodeURIComponent(roomId)}/${encodeURIComponent(role)}?token=${encodeURIComponent(accessToken)}&model=${encodeURIComponent(geminiModel)}`;
+  const wsUrl = isDirect
+    ? `wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent?key=${encodeURIComponent(config.gemini_key)}`
+    : `${protocol}//${location.host}/ws/gemini-live/${encodeURIComponent(roomId)}/${encodeURIComponent(role)}?token=${encodeURIComponent(accessToken)}&model=${encodeURIComponent(geminiModel)}`;
 
-  const ws = new WebSocket(wsUrl, ["calltranslate", accessToken]);
+  const ws = isDirect ? new WebSocket(wsUrl) : new WebSocket(wsUrl, ["calltranslate", accessToken]);
   geminiSocket = ws;
+
+  ws.onopen = () => {
+    if (geminiSocket !== ws) return;
+    if (isDirect) {
+      const instruction = role === "ar"
+        ? "You are an instant speech-to-speech interpreter translating for a live phone call. Listen to incoming English speech and translate it immediately into natural, clear Arabic speech. Output ONLY the spoken Arabic translation. Do not answer the speaker, do not converse, and do not add commentary."
+        : "You are an instant speech-to-speech interpreter translating for a live phone call. Listen to incoming Arabic speech and translate it immediately into natural, clear English speech. Output ONLY the spoken English translation. Do not answer the speaker, do not converse, and do not add commentary.";
+      const setupMsg = {
+        setup: {
+          model: `models/${geminiModel}`,
+          generationConfig: {
+            responseModalities: ["AUDIO"],
+            speechConfig: {
+              voiceConfig: {
+                prebuiltVoiceConfig: {
+                  voiceName: role === "ar" ? "Aoede" : "Puck",
+                },
+              },
+            },
+          },
+          systemInstruction: {
+            parts: [{ text: instruction }],
+          },
+        },
+      };
+      ws.send(JSON.stringify(setupMsg));
+    }
+  };
 
   ws.onmessage = (event) => {
     if (geminiSocket !== ws) return;
     let msg;
     try { msg = JSON.parse(event.data); } catch (_e) { return; }
 
-    if (msg.type === "ready") {
-      setLive(true);
-      setStatus("live", "live");
-      startTimer();
-      setupGeminiAudioCapture(remoteTrack, ws);
-    } else if (msg.type === "audio" && msg.data) {
-      try {
-        const float32 = base64ToFloat32(msg.data);
-        playGeminiPcmChunk(float32, 24000);
-      } catch (_e) {}
-    } else if (msg.type === "transcript") {
-      appendTranscript("translated", msg.text);
-    } else if (msg.type === "interrupted") {
-      if (geminiPlaybackContext) {
-        geminiNextPlayTime = geminiPlaybackContext.currentTime;
+    if (isDirect) {
+      if (msg.setupComplete) {
+        setLive(true);
+        setStatus("live", "live");
+        startTimer();
+        setupGeminiAudioCapture(remoteTrack, ws, true);
+      } else if (msg.serverContent) {
+        if (msg.serverContent.modelTurn?.parts) {
+          for (const part of msg.serverContent.modelTurn.parts) {
+            if (part.inlineData?.data) {
+              try {
+                const float32 = base64ToFloat32(part.inlineData.data);
+                playGeminiPcmChunk(float32, 24000);
+              } catch (_e) {}
+            }
+            if (part.text) {
+              appendTranscript("translated", part.text);
+            }
+          }
+        }
+        if (msg.serverContent.interrupted) {
+          if (geminiPlaybackContext) {
+            geminiNextPlayTime = geminiPlaybackContext.currentTime;
+          }
+        }
+      } else if (msg.error) {
+        failCall("translationFailed");
       }
-    } else if (msg.type === "error") {
-      failCall("translationFailed");
+    } else {
+      if (msg.type === "ready") {
+        setLive(true);
+        setStatus("live", "live");
+        startTimer();
+        setupGeminiAudioCapture(remoteTrack, ws, false);
+      } else if (msg.type === "audio" && msg.data) {
+        try {
+          const float32 = base64ToFloat32(msg.data);
+          playGeminiPcmChunk(float32, 24000);
+        } catch (_e) {}
+      } else if (msg.type === "transcript") {
+        appendTranscript("translated", msg.text);
+      } else if (msg.type === "interrupted") {
+        if (geminiPlaybackContext) {
+          geminiNextPlayTime = geminiPlaybackContext.currentTime;
+        }
+      } else if (msg.type === "error") {
+        failCall("translationFailed");
+      }
     }
   };
 

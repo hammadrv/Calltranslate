@@ -903,6 +903,7 @@ async def client_config(request: Request) -> JSONResponse:
             "translation_configured": has_openai or has_gemini,
             "openai_configured": has_openai,
             "gemini_configured": has_gemini,
+            "gemini_key": settings.gemini_api_key(),
             "access_expires_at": int(grant.expires_at),
             "max_call_seconds": settings.max_call_seconds,
         },
