@@ -1063,26 +1063,48 @@ async def cancel_friend_request(request_id: int, request: Request) -> JSONRespon
 
 # Real-time Translation Helper for Text Chat
 async def translate_text(text: str, source_lang: str, target_lang: str) -> str:
-    if source_lang == target_lang or not text.strip():
+    cleaned = text.strip()
+    if not cleaned:
         return ""
-    target_name = "Arabic" if target_lang == "ar" else "English"
-    gemini_key = os.getenv("GEMINI_API_KEY", "")
-    if gemini_key:
-        try:
-            url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={gemini_key}"
-            prompt = (
-                f"You are an instant chat translator. Translate the following user message into natural, casual {target_name}. "
-                f"Output ONLY the translated message, with no quotes, notes, explanations, or extra text:\n\n{text}"
-            )
-            async with httpx.AsyncClient(timeout=4.0) as client:
-                res = await client.post(url, json={"contents": [{"parts": [{"text": prompt}]}]})
-                if res.status_code == 200:
-                    data = res.json()
-                    parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
-                    if parts and parts[0].get("text"):
-                        return parts[0]["text"].strip()
-        except Exception as exc:
-            logger.warning("Gemini text translation failed: %s", exc)
+
+    has_english = bool(re.search(r"[a-zA-Z]", cleaned))
+    has_arabic = bool(re.search(r"[\u0600-\u06FF]", cleaned))
+
+    # Determine target language:
+    if target_lang == "en":
+        target_name = "English"
+    elif target_lang == "ar":
+        if has_english and not has_arabic:
+            target_name = "Arabic"
+        elif source_lang == "ar" and has_arabic:
+            target_name = "English"
+        else:
+            target_name = "Arabic"
+    else:
+        target_name = "English" if has_arabic else "Arabic"
+
+    gemini_key = settings.gemini_api_key()
+    if not gemini_key:
+        return ""
+
+    try:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash-latest:generateContent?key={gemini_key}"
+        prompt = (
+            f"You are a real-time chat translator. Translate the text into {target_name}. "
+            f"Return ONLY the direct translation text with no quotes, notes, or explanations:\n\n{cleaned}"
+        )
+        async with httpx.AsyncClient(timeout=6.0) as client:
+            res = await client.post(url, json={"contents": [{"parts": [{"text": prompt}]}]})
+            if res.status_code == 200:
+                data = res.json()
+                parts = data.get("candidates", [{}])[0].get("content", {}).get("parts", [])
+                for p in parts:
+                    txt = p.get("text", "").strip()
+                    if txt and txt.lower() != cleaned.lower():
+                        return txt
+    except Exception as exc:
+        logger.warning("Gemini text translation failed: %s", exc)
+
     return ""
 
 
@@ -1104,6 +1126,18 @@ async def get_chat_messages(username: str, request: Request) -> JSONResponse:
 
     db.mark_conversation_as_read(reader_user_id=user["id"], sender_user_id=target_id)
     msgs = db.list_conversation_messages(user["id"], target_id, limit=60)
+    for m in msgs:
+        if not m.get("translated_text") and m.get("original_text"):
+            trans = await translate_text(m["original_text"], m["from_lang"], m["to_lang"])
+            if trans:
+                m["translated_text"] = trans
+                uconn = db.get_connection()
+                try:
+                    with uconn:
+                        uconn.execute("UPDATE messages SET translated_text = ? WHERE id = ?", (trans, m["id"]))
+                finally:
+                    uconn.close()
+
     return JSONResponse({"messages": msgs})
 
 
