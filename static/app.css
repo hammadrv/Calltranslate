@@ -43,53 +43,67 @@
 html, body {
   width: 100%;
   height: 100%;
-  background-color: var(--tg-body-bg);
+  height: 100dvh;
+  margin: 0;
+  padding: 0;
+  background-color: var(--tg-app-bg);
   color: var(--tg-text-primary);
   display: flex;
-  align-items: center;
   justify-content: center;
+  align-items: stretch;
   overflow: hidden;
   direction: rtl;
   touch-action: manipulation;
   overscroll-behavior: none;
+  -webkit-tap-highlight-color: transparent;
 }
 
 /* ==========================================================================
-   Responsive Shell (Desktop Frame vs 100% Mobile Native)
+   Responsive Shell (Edge-to-Edge on Mobile, Centered Web App on Desktop)
    ========================================================================== */
 .telegram-device-shell {
   width: 100%;
-  max-width: 440px;
-  height: 94vh;
-  max-height: 920px;
+  max-width: 540px;
+  height: 100%;
+  height: 100dvh;
   background-color: var(--tg-app-bg);
-  border-radius: 38px;
-  box-shadow: 0 25px 70px rgba(0, 0, 0, 0.65), 0 0 0 8px #18232e;
   display: flex;
   flex-direction: column;
   position: relative;
   overflow: hidden;
-  border: 1px solid rgba(255, 255, 255, 0.12);
+  margin: 0 auto;
 }
 
-/* On actual phones / mobile screens: 100% Fullscreen Native App Feel */
-@media (max-width: 600px) {
+/* Desktop Screens: Sleek subtle centered container */
+@media (min-width: 769px) {
   body {
-    background-color: var(--tg-app-bg);
+    background-color: #080d14;
+    align-items: center;
   }
   .telegram-device-shell {
-    max-width: 100%;
-    width: 100vw;
-    height: 100dvh;
-    height: -webkit-fill-available;
-    max-height: 100dvh;
-    border-radius: 0;
-    box-shadow: none;
-    border: none;
+    height: 96vh;
+    max-height: 960px;
+    border-radius: 20px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 15px 50px rgba(0, 0, 0, 0.6);
   }
-  /* Hide the mockup status bar on real phones since iOS/Android already has its own! */
-  .tg-status-bar {
-    display: none !important;
+}
+
+/* All Mobile Devices, Phones, and Small Tablets (<= 768px): 100% Native Edge-to-Edge */
+@media (max-width: 768px) {
+  body {
+    background-color: var(--tg-app-bg);
+    align-items: stretch;
+  }
+  .telegram-device-shell {
+    max-width: 100% !important;
+    width: 100% !important;
+    height: 100% !important;
+    height: 100dvh !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    margin: 0 !important;
   }
   .tg-main-header {
     padding-top: max(12px, env(safe-area-inset-top)) !important;
@@ -98,33 +112,21 @@ html, body {
     padding-top: max(10px, env(safe-area-inset-top)) !important;
   }
   .tg-input-bar-wrap {
-    padding-bottom: max(10px, env(safe-area-inset-bottom)) !important;
+    padding-bottom: max(12px, env(safe-area-inset-bottom)) !important;
   }
   .tg-call-fullscreen, .tg-incoming-overlay {
     padding-top: max(32px, env(safe-area-inset-top)) !important;
     padding-bottom: max(32px, env(safe-area-inset-bottom)) !important;
   }
-}
-
-/* Mockup Status Bar (Visible on desktop/laptop views only) */
-.tg-status-bar {
-  height: 28px;
-  padding: 8px 22px 0;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: var(--tg-text-secondary);
-  background-color: var(--tg-header-bg);
-  user-select: none;
-  z-index: 30;
-}
-
-.tg-status-icons {
-  display: flex;
-  gap: 6px;
-  align-items: center;
+  .tg-fab-button {
+    bottom: calc(20px + env(safe-area-inset-bottom)) !important;
+  }
+  .tg-bottom-sheet {
+    padding-bottom: calc(24px + env(safe-area-inset-bottom)) !important;
+  }
+  #btnHeaderProfile {
+    display: none !important;
+  }
 }
 
 /* ==========================================================================

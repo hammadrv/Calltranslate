@@ -23,7 +23,6 @@
 
   // DOM Elements
   const dom = {
-    statusBarClock: document.getElementById("statusBarClock"),
     authBox: document.getElementById("authBox"),
     tabLogin: document.getElementById("tabLogin"),
     tabRegister: document.getElementById("tabRegister"),
@@ -105,15 +104,6 @@
     for (let i = 0; i < str.length; i++) hash = (hash + str.charCodeAt(i)) % 5;
     return `avatar-color-${hash}`;
   }
-
-  // Update clock
-  function updateClock() {
-    if (!dom.statusBarClock) return;
-    const now = new Date();
-    dom.statusBarClock.textContent = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
-  }
-  setInterval(updateClock, 10000);
-  updateClock();
 
   function authHeaders(headers = {}) {
     return { ...headers, Authorization: `Bearer ${userToken}`, "Content-Type": "application/json" };
