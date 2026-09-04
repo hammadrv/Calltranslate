@@ -1,5 +1,12 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <rect width="64" height="64" rx="16" fill="#34d6a0"/>
-  <path d="M17 19h30v21H33l-9 7v-7h-7z" fill="#08111f"/>
-  <text x="32" y="34" fill="#f7fbff" font-family="Arial,sans-serif" font-size="13" font-weight="700" text-anchor="middle">ع·EN</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none">
+  <defs>
+    <linearGradient id="brand" x1="10" y1="6" x2="55" y2="59" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#55BEFF"/>
+      <stop offset="1" stop-color="#197FCC"/>
+    </linearGradient>
+  </defs>
+  <rect x="2" y="2" width="60" height="60" rx="19" fill="url(#brand)"/>
+  <rect x="2.75" y="2.75" width="58.5" height="58.5" rx="18.25" stroke="white" stroke-opacity=".2" stroke-width="1.5"/>
+  <path d="M18.5 17.5h27A6.5 6.5 0 0 1 52 24v14a6.5 6.5 0 0 1-6.5 6.5H33L22 52v-7.5h-3.5A6.5 6.5 0 0 1 12 38V24a6.5 6.5 0 0 1 6.5-6.5Z" stroke="white" stroke-width="4" stroke-linejoin="round"/>
+  <path d="M23 30v4m9-11v18m9-11v4" stroke="white" stroke-width="4" stroke-linecap="round"/>
 </svg>

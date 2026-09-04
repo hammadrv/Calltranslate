@@ -3,27 +3,33 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
-    <meta name="theme-color" content="#17212b">
+    <meta name="theme-color" content="#121e2a">
     <title>Calltranslate</title>
-    <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/static/app.css?v=4.0">
+    <link rel="icon" href="/static/favicon.svg?v=2" type="image/svg+xml">
+    <link rel="stylesheet" href="/static/app.css?v=5.0">
   </head>
   <body>
     <div class="telegram-device-shell">
       <!-- Main Header -->
       <header class="tg-main-header">
-        <div class="tg-header-right">
+        <button id="btnHeaderProfile" class="tg-header-profile" type="button" title="حسابك الحالي" aria-label="فتح حسابك">
+          <span id="headerUserAvatar" class="tg-header-avatar avatar-color-1">U</span>
+          <span class="tg-header-online" aria-hidden="true"></span>
+          <span id="currentUserLangBadge" class="tg-header-lang">AR</span>
+          <strong id="currentUserHandle" class="tg-visually-hidden" dir="ltr">@user</strong>
+        </button>
+
+        <div class="tg-header-brand" aria-label="Calltranslate">
+          <span class="tg-brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none">
+              <path d="M6.5 5.5h11A2.5 2.5 0 0 1 20 8v6a2.5 2.5 0 0 1-2.5 2.5H12l-4.5 3v-3h-1A2.5 2.5 0 0 1 4 14V8a2.5 2.5 0 0 1 2.5-2.5Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+              <path d="M8.5 11v1m3-3v5m3-3v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+            </svg>
+          </span>
           <span class="tg-header-title">Calltranslate</span>
         </div>
 
-        <div class="tg-header-left">
-          <!-- Clear prominent user badge -->
-          <div id="btnHeaderProfile" class="tg-user-pill-tag" title="حسابك الحالي">
-            <span class="tg-user-pill-label" style="opacity:0.75;">حسابك:</span>
-            <strong id="currentUserHandle" dir="ltr">@user</strong>
-            <span id="currentUserLangBadge" class="tg-lang-chip" style="margin-right:2px;padding:1px 5px;">AR</span>
-          </div>
-        </div>
+        <span class="tg-header-balance" aria-hidden="true"></span>
       </header>
 
       <!-- Tab 1: Chats Feed -->
@@ -436,6 +442,6 @@
     <audio id="appTranslatedAudio" autoplay playsinline></audio>
     <audio id="appAudioPuller" muted playsinline hidden></audio>
 
-    <script src="/static/app.js?v=4.0" defer></script>
+    <script src="/static/app.js?v=5.0" defer></script>
   </body>
 </html>

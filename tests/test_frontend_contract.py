@@ -205,6 +205,7 @@ def test_app_shell_tracks_the_visible_mobile_viewport() -> None:
 
 def test_app_mobile_navigation_and_header_keep_safe_spacing() -> None:
     html = APP_HTML.read_text(encoding="utf-8")
+    javascript = APP_JS.read_text(encoding="utf-8")
     styles = APP_CSS.read_text(encoding="utf-8")
 
     assert 'class="tg-bottom-nav" aria-label=' in html
@@ -212,7 +213,29 @@ def test_app_mobile_navigation_and_header_keep_safe_spacing() -> None:
         assert re.search(rf'id="{tab_id}"[^>]*type="button"', html)
     for edge in ("right", "bottom", "left"):
         assert f"env(safe-area-inset-{edge})" in styles
-    assert ".tg-user-pill-tag strong" in styles
+    assert 'id="btnHeaderProfile" class="tg-header-profile" type="button"' in html
+    assert 'id="headerUserAvatar"' in html
+    assert 'class="tg-header-brand"' in html
+    assert 'class="tg-brand-mark"' in html
+    assert "headerUserAvatar: document.getElementById" in javascript
     assert "text-overflow: ellipsis" in styles
-    assert 'class="tg-user-pill-label"' in html
     assert re.search(r"\.tg-fab-button\s*\{[^}]*bottom:\s*18px", styles, re.DOTALL)
+
+
+def test_app_has_refined_contact_and_empty_states_without_plan_badges() -> None:
+    html = APP_HTML.read_text(encoding="utf-8")
+    javascript = APP_JS.read_text(encoding="utf-8")
+    styles = APP_CSS.read_text(encoding="utf-8")
+
+    assert 'app.css?v=5.0' in html
+    assert 'app.js?v=5.0' in html
+    assert 'row.className = "tg-chat-row"' in javascript
+    assert 'document.createElement("button")' in javascript
+    assert 'class="tg-empty-action"' in javascript
+    assert 'welcomeCard.className = "tg-welcome-card"' in javascript
+    assert "openAddFriendModal" in javascript
+    assert "#contactsContainer" in styles
+    assert "backdrop-filter: blur(20px)" in styles
+    assert re.search(r"@media\s*\(prefers-reduced-motion:\s*reduce\)", styles)
+    assert "Premium" not in html
+    assert "الدقائق المتبقية" not in html

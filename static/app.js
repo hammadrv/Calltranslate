@@ -59,6 +59,7 @@
     regError: document.getElementById("regError"),
     currentUserHandle: document.getElementById("currentUserHandle"),
     currentUserLangBadge: document.getElementById("currentUserLangBadge"),
+    headerUserAvatar: document.getElementById("headerUserAvatar"),
     btnHeaderProfile: document.getElementById("btnHeaderProfile"),
     // Bottom Navigation Bar (iOS Style)
     navTabChats: document.getElementById("navTabChats"),
@@ -221,6 +222,15 @@
     const isAr = currentUser.language === "ar";
     if (dom.currentUserHandle) dom.currentUserHandle.textContent = `@${currentUser.username}`;
     if (dom.currentUserLangBadge) dom.currentUserLangBadge.textContent = isAr ? "AR" : "EN";
+    if (dom.headerUserAvatar) {
+      dom.headerUserAvatar.textContent = (currentUser.display_name || currentUser.username).charAt(0).toUpperCase();
+      dom.headerUserAvatar.className = `tg-header-avatar ${getAvatarColorClass(currentUser.username)}`;
+    }
+    if (dom.btnHeaderProfile) {
+      const accountLabel = `فتح حساب ${currentUser.display_name || currentUser.username}`;
+      dom.btnHeaderProfile.setAttribute("aria-label", accountLabel);
+      dom.btnHeaderProfile.title = accountLabel;
+    }
 
     if (dom.settingsUserName) dom.settingsUserName.textContent = currentUser.display_name || currentUser.username;
     if (dom.settingsUserHandle) dom.settingsUserHandle.textContent = `@${currentUser.username}`;
@@ -359,15 +369,22 @@
     if (contacts.length === 0) {
       dom.contactsContainer.innerHTML = `
         <div class="tg-empty-feed">
-          <div class="tg-empty-icon">
-            <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-            </svg>
+          <div class="tg-empty-visual" aria-hidden="true">
+            <span class="tg-empty-spark spark-one"></span>
+            <span class="tg-empty-logo">
+              <svg viewBox="0 0 24 24" fill="none">
+                <path d="M6.5 5.5h11A2.5 2.5 0 0 1 20 8v6a2.5 2.5 0 0 1-2.5 2.5H12l-4.5 3v-3h-1A2.5 2.5 0 0 1 4 14V8a2.5 2.5 0 0 1 2.5-2.5Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>
+                <path d="M8.5 11v1m3-3v5m3-3v1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
+              </svg>
+            </span>
+            <span class="tg-empty-spark spark-two"></span>
           </div>
-          <h4 style="color:#fff; margin-bottom:6px;">لا توجد محادثات بعد</h4>
-          <p style="font-size:0.88rem;">اضغط على زر الإضافة الدائري بالأسفل لإرسال طلب صداقة والبدء بالحديث والاتصال المترجم!</p>
+          <h2 class="tg-empty-title">ابدأ أول محادثة</h2>
+          <p class="tg-empty-copy">أضف شخصاً وابدأ رسائل ومكالمات مترجمة تساعدكما على التواصل بلا حواجز.</p>
+          <button class="tg-empty-action" type="button">إضافة شخص</button>
         </div>
       `;
+      dom.contactsContainer.querySelector(".tg-empty-action")?.addEventListener("click", openAddFriendModal);
       if (dom.chatsUnreadCountBadge) dom.chatsUnreadCountBadge.classList.add("hidden");
       return;
     }
@@ -382,11 +399,16 @@
       }
     }
 
-    contacts.forEach((c) => {
-      const row = document.createElement("div");
+    contacts.forEach((c, index) => {
+      const row = document.createElement("button");
+      row.type = "button";
       row.className = "tg-chat-row";
-      const colorCls = getAvatarColorClass(c.username);
-      const initial = (c.display_name || c.username).charAt(0).toUpperCase();
+      row.style.setProperty("--row-index", Math.min(index, 8));
+      const username = c.username || "";
+      const displayName = c.display_name || username || "مستخدم";
+      const colorCls = getAvatarColorClass(username);
+      const initial = displayName.charAt(0).toUpperCase();
+      row.setAttribute("aria-label", `فتح محادثة مع ${displayName}`);
 
       let timeText = "";
       if (c.last_message_time) {
@@ -396,35 +418,56 @@
         timeText = "متصل";
       }
 
-      const snippet = c.last_message ? escapeHtml(c.last_message) : `@${c.username}`;
+      const snippet = escapeHtml(c.last_message || `@${username}`);
+      const safeDisplayName = escapeHtml(displayName);
+      const safeInitial = escapeHtml(initial);
+      const safeLanguage = escapeHtml((c.language || "").toUpperCase());
       const unreadBadgeHtml = c.unread_count > 0 ? `<span class="tg-unread-badge">${c.unread_count}</span>` : "";
 
       row.innerHTML = `
-        <div class="tg-avatar-wrap">
-          <div class="tg-avatar ${colorCls}">${initial}</div>
+        <span class="tg-avatar-wrap">
+          <span class="tg-avatar ${colorCls}">${safeInitial}</span>
           <span class="tg-online-badge ${c.is_online ? "online" : ""}"></span>
-        </div>
-        <div class="tg-chat-content">
-          <div class="tg-chat-header-row">
-            <span class="tg-chat-name">${c.display_name}</span>
-            <div class="tg-chat-meta-side">
+        </span>
+        <span class="tg-chat-content">
+          <span class="tg-chat-header-row">
+            <span class="tg-chat-name" dir="auto">${safeDisplayName}</span>
+            <span class="tg-chat-meta-side">
               <span class="tg-chat-time" style="color:${c.is_online ? 'var(--tg-blue)' : 'var(--tg-text-secondary)'}; font-weight:${c.is_online ? '600' : 'normal'};">
                 ${timeText}
               </span>
               ${unreadBadgeHtml}
-            </div>
-          </div>
-          <div class="tg-chat-preview-row">
-            <span class="tg-chat-snippet">${snippet}</span>
-            <span class="tg-lang-chip">${c.language.toUpperCase()}</span>
-          </div>
-        </div>
-        <div class="tg-divider"></div>
+            </span>
+          </span>
+          <span class="tg-chat-preview-row">
+            <span class="tg-chat-snippet" dir="auto">${snippet}</span>
+            <span class="tg-lang-chip">${safeLanguage}</span>
+          </span>
+        </span>
+        <span class="tg-divider"></span>
       `;
 
       row.addEventListener("click", () => openChat(c));
       dom.contactsContainer.appendChild(row);
     });
+
+    if (contacts.length <= 2) {
+      const welcomeCard = document.createElement("aside");
+      welcomeCard.className = "tg-welcome-card";
+      welcomeCard.innerHTML = `
+        <div class="tg-welcome-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <path d="M7 17.5 3.5 20v-4A7.5 7.5 0 1 1 7 17.5Z"/>
+            <path d="M8.5 10.5h7m-7 3h4" stroke-linecap="round"/>
+          </svg>
+        </div>
+        <h3>تواصل بلا حواجز</h3>
+        <p>وسّع دائرة محادثاتك واستمتع برسائل ومكالمات مترجمة فورياً.</p>
+        <button class="tg-welcome-action" type="button">إضافة شخص آخر</button>
+      `;
+      welcomeCard.querySelector(".tg-welcome-action")?.addEventListener("click", openAddFriendModal);
+      dom.contactsContainer.appendChild(welcomeCard);
+    }
   }
 
   // --- Add Friend API ---
