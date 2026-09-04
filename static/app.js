@@ -1,4 +1,25 @@
 (() => {
+  // iOS Safari can report a layout viewport that continues underneath its
+  // bottom toolbar. Keep the app shell tied to the actually visible viewport.
+  function syncVisibleViewportHeight() {
+    const viewportHeight = window.visualViewport?.height || window.innerHeight;
+    if (viewportHeight > 0) {
+      document.documentElement.style.setProperty("--app-height", `${Math.round(viewportHeight)}px`);
+    }
+  }
+
+  let viewportFrame = 0;
+  function scheduleViewportSync() {
+    cancelAnimationFrame(viewportFrame);
+    viewportFrame = requestAnimationFrame(syncVisibleViewportHeight);
+  }
+
+  syncVisibleViewportHeight();
+  window.addEventListener("resize", scheduleViewportSync, { passive: true });
+  window.addEventListener("orientationchange", scheduleViewportSync, { passive: true });
+  window.visualViewport?.addEventListener("resize", scheduleViewportSync, { passive: true });
+  window.visualViewport?.addEventListener("scroll", scheduleViewportSync, { passive: true });
+
   let currentUser = null;
   let userToken = "";
   let hubSocket = null;

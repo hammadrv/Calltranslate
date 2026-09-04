@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#17212b">
     <title>Calltranslate</title>
     <link rel="icon" href="/static/favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="/static/app.css?v=3.0">
+    <link rel="stylesheet" href="/static/app.css?v=4.0">
   </head>
   <body>
     <div class="telegram-device-shell">
@@ -19,7 +19,7 @@
         <div class="tg-header-left">
           <!-- Clear prominent user badge -->
           <div id="btnHeaderProfile" class="tg-user-pill-tag" title="حسابك الحالي">
-            <span style="opacity:0.75;">حسابك:</span>
+            <span class="tg-user-pill-label" style="opacity:0.75;">حسابك:</span>
             <strong id="currentUserHandle" dir="ltr">@user</strong>
             <span id="currentUserLangBadge" class="tg-lang-chip" style="margin-right:2px;padding:1px 5px;">AR</span>
           </div>
@@ -131,8 +131,8 @@
       </main>
 
       <!-- Bottom Navigation Bar (Telegram iOS Style) -->
-      <nav class="tg-bottom-nav">
-        <button id="navTabChats" class="tg-bottom-nav-item active">
+      <nav class="tg-bottom-nav" aria-label="التنقل الرئيسي">
+        <button id="navTabChats" class="tg-bottom-nav-item active" type="button" aria-label="المحادثات">
           <div class="tg-nav-icon-wrap">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
@@ -142,7 +142,7 @@
           <span class="tg-nav-label">المحادثات</span>
         </button>
 
-        <button id="navTabRequests" class="tg-bottom-nav-item">
+        <button id="navTabRequests" class="tg-bottom-nav-item" type="button" aria-label="الطلبات">
           <div class="tg-nav-icon-wrap">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
@@ -155,7 +155,7 @@
           <span class="tg-nav-label">الطلبات</span>
         </button>
 
-        <button id="navTabSettings" class="tg-bottom-nav-item">
+        <button id="navTabSettings" class="tg-bottom-nav-item" type="button" aria-label="الإعدادات">
           <div class="tg-nav-icon-wrap">
             <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <circle cx="12" cy="12" r="3"/>
@@ -436,6 +436,6 @@
     <audio id="appTranslatedAudio" autoplay playsinline></audio>
     <audio id="appAudioPuller" muted playsinline hidden></audio>
 
-    <script src="/static/app.js?v=3.0" defer></script>
+    <script src="/static/app.js?v=4.0" defer></script>
   </body>
 </html>

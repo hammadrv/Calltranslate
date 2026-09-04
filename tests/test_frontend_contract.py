@@ -10,6 +10,9 @@ PROJECT_ROOT = Path(__file__).resolve().parents[1]
 CALL_HTML = PROJECT_ROOT / "static" / "call.html"
 CALL_JS = PROJECT_ROOT / "static" / "call.js"
 STYLES_CSS = PROJECT_ROOT / "static" / "styles.css"
+APP_HTML = PROJECT_ROOT / "static" / "app.html"
+APP_JS = PROJECT_ROOT / "static" / "app.js"
+APP_CSS = PROJECT_ROOT / "static" / "app.css"
 
 
 class CallPageParser(HTMLParser):
@@ -186,3 +189,30 @@ def test_call_page_loads_only_local_frontend_assets() -> None:
     assert "/static/call.js" in asset_urls
     assert "/static/styles.css" in asset_urls
     assert all(url.startswith("/static/") for url in asset_urls)
+
+
+def test_app_shell_tracks_the_visible_mobile_viewport() -> None:
+    html = APP_HTML.read_text(encoding="utf-8")
+    javascript = APP_JS.read_text(encoding="utf-8")
+    styles = APP_CSS.read_text(encoding="utf-8")
+
+    assert "viewport-fit=cover" in html
+    assert "window.visualViewport?.height" in javascript
+    assert '--app-height' in javascript
+    assert "height: var(--app-height, 100dvh)" in styles
+    assert "env(safe-area-inset-bottom)" in styles
+
+
+def test_app_mobile_navigation_and_header_keep_safe_spacing() -> None:
+    html = APP_HTML.read_text(encoding="utf-8")
+    styles = APP_CSS.read_text(encoding="utf-8")
+
+    assert 'class="tg-bottom-nav" aria-label=' in html
+    for tab_id in ("navTabChats", "navTabRequests", "navTabSettings"):
+        assert re.search(rf'id="{tab_id}"[^>]*type="button"', html)
+    for edge in ("right", "bottom", "left"):
+        assert f"env(safe-area-inset-{edge})" in styles
+    assert ".tg-user-pill-tag strong" in styles
+    assert "text-overflow: ellipsis" in styles
+    assert 'class="tg-user-pill-label"' in html
+    assert re.search(r"\.tg-fab-button\s*\{[^}]*bottom:\s*18px", styles, re.DOTALL)
