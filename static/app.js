@@ -50,6 +50,7 @@
     drawerBtnLogout: document.getElementById("drawerBtnLogout"),
     // Tabs & Feeds
     tabChats: document.getElementById("tabChats"),
+    chatsUnreadCountBadge: document.getElementById("chatsUnreadCountBadge"),
     tabRequests: document.getElementById("tabRequests"),
     requestsCountBadge: document.getElementById("requestsCountBadge"),
     viewChatsFeed: document.getElementById("viewChatsFeed"),
@@ -362,7 +363,18 @@
           <p style="font-size:0.88rem;">اضغط على زر الإضافة الدائري بالأسفل لإرسال طلب صداقة والبدء بالحديث والاتصال المترجم!</p>
         </div>
       `;
+      if (dom.chatsUnreadCountBadge) dom.chatsUnreadCountBadge.classList.add("hidden");
       return;
+    }
+
+    const totalUnread = contacts.reduce((sum, c) => sum + (c.unread_count || 0), 0);
+    if (dom.chatsUnreadCountBadge) {
+      if (totalUnread > 0) {
+        dom.chatsUnreadCountBadge.textContent = totalUnread;
+        dom.chatsUnreadCountBadge.classList.remove("hidden");
+      } else {
+        dom.chatsUnreadCountBadge.classList.add("hidden");
+      }
     }
 
     contacts.forEach((c) => {
@@ -370,6 +382,17 @@
       row.className = "tg-chat-row";
       const colorCls = getAvatarColorClass(c.username);
       const initial = (c.display_name || c.username).charAt(0).toUpperCase();
+
+      let timeText = "";
+      if (c.last_message_time) {
+        const msgDate = new Date(c.last_message_time * 1000);
+        timeText = msgDate.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      } else if (c.is_online) {
+        timeText = "متصل";
+      }
+
+      const snippet = c.last_message ? escapeHtml(c.last_message) : `@${c.username}`;
+      const unreadBadgeHtml = c.unread_count > 0 ? `<span class="tg-unread-badge">${c.unread_count}</span>` : "";
 
       row.innerHTML = `
         <div class="tg-avatar-wrap">
@@ -379,12 +402,15 @@
         <div class="tg-chat-content">
           <div class="tg-chat-header-row">
             <span class="tg-chat-name">${c.display_name}</span>
-            <span class="tg-chat-time" style="color:${c.is_online ? 'var(--tg-blue)' : 'var(--tg-text-secondary)'}; font-weight:${c.is_online ? '600' : 'normal'};">
-              ${c.is_online ? "متصل" : ""}
-            </span>
+            <div class="tg-chat-meta-side">
+              <span class="tg-chat-time" style="color:${c.is_online ? 'var(--tg-blue)' : 'var(--tg-text-secondary)'}; font-weight:${c.is_online ? '600' : 'normal'};">
+                ${timeText}
+              </span>
+              ${unreadBadgeHtml}
+            </div>
           </div>
           <div class="tg-chat-preview-row">
-            <span class="tg-chat-snippet" dir="ltr">@${c.username}</span>
+            <span class="tg-chat-snippet">${snippet}</span>
             <span class="tg-lang-chip">${c.language.toUpperCase()}</span>
           </div>
         </div>
@@ -545,6 +571,15 @@
     dom.chatKebabDropdown.classList.add("hidden");
     dom.chatViewOverlay.classList.remove("hidden");
 
+    if (contact.unread_count > 0) {
+      contact.unread_count = 0;
+      void fetch(`/api/messages/${contact.username}/read`, {
+        method: "POST",
+        headers: authHeaders(),
+      }).catch(() => {});
+      loadContacts();
+    }
+
     await loadChatMessages(contact.username);
   }
 
@@ -675,7 +710,30 @@
     if (activeChatContact && (msg.from_user_id === activeChatContact.id || msgEvent.sender_username === activeChatContact.username)) {
       appendMessageBubble(msg);
       scrollChatToBottom();
+      void fetch(`/api/messages/${activeChatContact.username}/read`, {
+        method: "POST",
+        headers: authHeaders(),
+      }).catch(() => {});
+    } else {
+      loadContacts();
+      playNotificationSound();
     }
+  }
+
+  function playNotificationSound() {
+    try {
+      const ctx = new (window.AudioContext || window.webkitAudioContext)();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(880, ctx.currentTime);
+      gain.gain.setValueAtTime(0.12, ctx.currentTime);
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.15);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      osc.stop(ctx.currentTime + 0.15);
+    } catch (_e) {}
   }
 
   // --- Calling Flow & WebRTC Engine ---

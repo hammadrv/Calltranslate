@@ -244,6 +244,30 @@ html, body {
   background-color: var(--tg-orange);
 }
 
+.tg-tab-badge.badge-green {
+  background-color: var(--tg-green);
+}
+
+.tg-unread-badge {
+  background-color: var(--tg-green);
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 2px 7px;
+  border-radius: 12px;
+  min-width: 20px;
+  text-align: center;
+  box-shadow: 0 2px 6px rgba(79, 174, 106, 0.4);
+  display: inline-block;
+}
+
+.tg-chat-meta-side {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
 /* ==========================================================================
    Chat List Feed (Telegram Authentic Rows)
    ========================================================================== */

@@ -1102,8 +1102,28 @@ async def get_chat_messages(username: str, request: Request) -> JSONResponse:
     finally:
         conn.close()
 
+    db.mark_conversation_as_read(reader_user_id=user["id"], sender_user_id=target_id)
     msgs = db.list_conversation_messages(user["id"], target_id, limit=60)
     return JSONResponse({"messages": msgs})
+
+
+@app.post("/api/messages/{username}/read")
+async def mark_messages_read(username: str, request: Request) -> JSONResponse:
+    user = get_current_user(request)
+    conn = db.get_connection()
+    try:
+        target_row = conn.execute(
+            "SELECT id FROM users WHERE username = ?",
+            (username.strip().lower(),)
+        ).fetchone()
+        if not target_row:
+            raise HTTPException(status_code=404, detail="User not found")
+        target_id = target_row["id"]
+    finally:
+        conn.close()
+
+    count = db.mark_conversation_as_read(reader_user_id=user["id"], sender_user_id=target_id)
+    return JSONResponse({"status": "read", "count": count})
 
 
 @app.post("/api/messages/{username}")
@@ -1142,6 +1162,7 @@ async def send_chat_message(username: str, data: MessageInput, request: Request)
             "message": msg_record,
             "sender_username": user["username"],
             "sender_name": user["display_name"],
+            "sender_id": user["id"],
         },
     )
 

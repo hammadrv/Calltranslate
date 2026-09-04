@@ -107,11 +107,16 @@ def init_db() -> None:
                     from_lang TEXT NOT NULL DEFAULT 'ar',
                     to_lang TEXT NOT NULL DEFAULT 'en',
                     created_at INTEGER NOT NULL,
+                    is_read INTEGER NOT NULL DEFAULT 0,
                     FOREIGN KEY(from_user_id) REFERENCES users(id) ON DELETE CASCADE,
                     FOREIGN KEY(to_user_id) REFERENCES users(id) ON DELETE CASCADE
                 )
             """)
             conn.execute("CREATE INDEX IF NOT EXISTS idx_messages_pair ON messages(from_user_id, to_user_id);")
+            try:
+                conn.execute("ALTER TABLE messages ADD COLUMN is_read INTEGER NOT NULL DEFAULT 0;")
+            except sqlite3.OperationalError:
+                pass
 
             # Seed default admin if not exists
             admin = conn.execute("SELECT id FROM users WHERE username = 'admin'").fetchone()
@@ -445,12 +450,38 @@ def list_contacts(user_id: int) -> list[dict[str, Any]]:
     conn = get_connection()
     try:
         rows = conn.execute("""
-            SELECT u.id, u.username, u.display_name, u.language, u.last_seen
+            SELECT 
+                u.id, 
+                u.username, 
+                u.display_name, 
+                u.language, 
+                u.last_seen,
+                (
+                    SELECT COUNT(*) 
+                    FROM messages m 
+                    WHERE m.to_user_id = ? AND m.from_user_id = u.id AND m.is_read = 0
+                ) AS unread_count,
+                (
+                    SELECT m.original_text 
+                    FROM messages m 
+                    WHERE (m.from_user_id = ? AND m.to_user_id = u.id) 
+                       OR (m.from_user_id = u.id AND m.to_user_id = ?) 
+                    ORDER BY m.created_at DESC, m.id DESC 
+                    LIMIT 1
+                ) AS last_message,
+                (
+                    SELECT m.created_at 
+                    FROM messages m 
+                    WHERE (m.from_user_id = ? AND m.to_user_id = u.id) 
+                       OR (m.from_user_id = u.id AND m.to_user_id = ?) 
+                    ORDER BY m.created_at DESC, m.id DESC 
+                    LIMIT 1
+                ) AS last_message_time
             FROM contacts c
             JOIN users u ON c.contact_user_id = u.id
             WHERE c.user_id = ?
-            ORDER BY u.display_name ASC
-        """, (user_id,)).fetchall()
+            ORDER BY COALESCE(last_message_time, 0) DESC, u.display_name ASC
+        """, (user_id, user_id, user_id, user_id, user_id, user_id)).fetchall()
         return [
             {
                 "id": r["id"],
@@ -458,6 +489,9 @@ def list_contacts(user_id: int) -> list[dict[str, Any]]:
                 "display_name": r["display_name"],
                 "language": r["language"],
                 "last_seen": r["last_seen"],
+                "unread_count": int(r["unread_count"] or 0),
+                "last_message": r["last_message"] or "",
+                "last_message_time": r["last_message_time"] or 0,
             }
             for r in rows
         ]
@@ -538,8 +572,8 @@ def save_message(
         with conn:
             cursor = conn.execute(
                 """
-                INSERT INTO messages (from_user_id, to_user_id, original_text, translated_text, from_lang, to_lang, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO messages (from_user_id, to_user_id, original_text, translated_text, from_lang, to_lang, created_at, is_read)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 0)
                 """,
                 (from_user_id, to_user_id, original_text, translated_text, from_lang, to_lang, now),
             )
@@ -553,7 +587,25 @@ def save_message(
             "from_lang": from_lang,
             "to_lang": to_lang,
             "created_at": now,
+            "is_read": 0,
         }
+    finally:
+        conn.close()
+
+
+def mark_conversation_as_read(reader_user_id: int, sender_user_id: int) -> int:
+    conn = get_connection()
+    try:
+        with conn:
+            cursor = conn.execute(
+                """
+                UPDATE messages 
+                SET is_read = 1 
+                WHERE to_user_id = ? AND from_user_id = ? AND is_read = 0
+                """,
+                (reader_user_id, sender_user_id),
+            )
+            return cursor.rowcount
     finally:
         conn.close()
 
@@ -563,7 +615,7 @@ def list_conversation_messages(user_id1: int, user_id2: int, limit: int = 60) ->
     try:
         rows = conn.execute(
             """
-            SELECT id, from_user_id, to_user_id, original_text, translated_text, from_lang, to_lang, created_at
+            SELECT id, from_user_id, to_user_id, original_text, translated_text, from_lang, to_lang, created_at, is_read
             FROM messages
             WHERE (from_user_id = ? AND to_user_id = ?)
                OR (from_user_id = ? AND to_user_id = ?)
@@ -582,6 +634,7 @@ def list_conversation_messages(user_id1: int, user_id2: int, limit: int = 60) ->
                 "from_lang": r["from_lang"],
                 "to_lang": r["to_lang"],
                 "created_at": r["created_at"],
+                "is_read": int(r["is_read"] or 0),
             }
             for r in rows
         ]

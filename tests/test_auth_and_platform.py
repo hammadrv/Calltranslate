@@ -228,9 +228,27 @@ def test_chat_messaging_and_outgoing_friend_requests():
         assert saved["original_text"] == "مرحبا بك"
         assert saved["from_lang"] == "ar"
 
-        # chat2 retrieves conversation
+        # chat1 sends a second message to chat2
+        client.post("/api/messages/chat2", headers=h1, json={"text": "الرسالة الثانية"})
+
+        # chat2 checks contacts: should see unread_count == 2
+        c_res = client.get("/api/contacts", headers=h2)
+        assert c_res.status_code == 200
+        contacts = c_res.json()["contacts"]
+        assert len(contacts) == 1
+        assert contacts[0]["username"] == "chat1"
+        assert contacts[0]["unread_count"] == 2
+        assert contacts[0]["last_message"] == "الرسالة الثانية"
+
+        # chat2 retrieves conversation (which marks messages as read)
         hist_res = client.get("/api/messages/chat1", headers=h2)
         assert hist_res.status_code == 200
         msgs = hist_res.json()["messages"]
-        assert len(msgs) == 1
+        assert len(msgs) == 2
         assert msgs[0]["original_text"] == "مرحبا بك"
+        assert msgs[1]["original_text"] == "الرسالة الثانية"
+
+        # chat2 checks contacts again: unread_count should now be 0
+        c_res2 = client.get("/api/contacts", headers=h2)
+        contacts2 = c_res2.json()["contacts"]
+        assert contacts2[0]["unread_count"] == 0
