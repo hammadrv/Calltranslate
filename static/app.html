@@ -13,13 +13,6 @@
       <!-- Main Header -->
       <header class="tg-main-header">
         <div class="tg-header-right">
-          <button id="btnOpenDrawer" class="tg-icon-btn" title="القائمة الرئيسية">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-              <line x1="3" y1="12" x2="21" y2="12"/>
-              <line x1="3" y1="6" x2="21" y2="6"/>
-              <line x1="3" y1="18" x2="21" y2="18"/>
-            </svg>
-          </button>
           <span class="tg-header-title">Calltranslate</span>
         </div>
 
@@ -32,18 +25,6 @@
           </div>
         </div>
       </header>
-
-      <!-- Telegram Segment Tabs (Chats / Requests) -->
-      <nav class="tg-tabs-nav">
-        <button id="tabChats" class="tg-tab-item active">
-          <span>المحادثات</span>
-          <span id="chatsUnreadCountBadge" class="tg-tab-badge badge-green hidden">0</span>
-        </button>
-        <button id="tabRequests" class="tg-tab-item">
-          <span>الطلبات</span>
-          <span id="requestsCountBadge" class="tg-tab-badge badge-orange hidden">0</span>
-        </button>
-      </nav>
 
       <!-- Tab 1: Chats Feed -->
       <main id="viewChatsFeed" class="tg-chats-feed">
@@ -78,6 +59,112 @@
           </div>
         </div>
       </main>
+
+      <!-- Tab 3: Settings & Profile Feed -->
+      <main id="viewSettingsFeed" class="tg-chats-feed hidden">
+        <div class="tg-settings-feed">
+          <!-- Profile Card -->
+          <div class="tg-settings-profile-card">
+            <div id="settingsUserAvatar" class="tg-avatar avatar-color-1" style="width:72px; height:72px; font-size:1.8rem; box-shadow:0 6px 20px rgba(0,0,0,0.4); margin:0 auto;">U</div>
+            <div style="text-align:center; margin-top:12px;">
+              <h3 id="settingsUserName" style="color:#fff; font-size:1.2rem; font-weight:700; margin-bottom:4px;">المستخدم</h3>
+              <p id="settingsUserHandle" style="color:var(--tg-blue); font-size:0.92rem; font-weight:600;" dir="ltr">@user</p>
+              <div style="display:inline-flex; align-items:center; gap:6px; margin-top:6px; background:rgba(79,174,106,0.15); border:1px solid rgba(79,174,106,0.3); padding:2px 10px; border-radius:12px; font-size:0.75rem; color:var(--tg-green);">
+                <span style="width:7px; height:7px; border-radius:50%; background-color:var(--tg-green); display:inline-block;"></span>
+                متصل الآن
+              </div>
+            </div>
+          </div>
+
+          <!-- Settings Options Group -->
+          <div class="tg-settings-group">
+            <button id="settingsBtnLang" class="tg-settings-row">
+              <div class="tg-settings-row-icon icon-blue">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="2" y1="12" x2="22" y2="12"/>
+                  <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/>
+                </svg>
+              </div>
+              <div class="tg-settings-row-content">
+                <span class="tg-settings-row-title">لغة الترجمة الفورية</span>
+                <span id="settingsLangText" class="tg-settings-row-value">العربية (AR)</span>
+              </div>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--tg-text-secondary); transform:rotate(180deg);">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </button>
+
+            <a href="/docs-app" class="tg-settings-row" style="text-decoration:none;">
+              <div class="tg-settings-row-icon icon-orange">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/>
+                  <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>
+                </svg>
+              </div>
+              <div class="tg-settings-row-content">
+                <span class="tg-settings-row-title">دليل التوثيق البرمجي</span>
+                <span class="tg-settings-row-value">Docs & API</span>
+              </div>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="color:var(--tg-text-secondary); transform:rotate(180deg);">
+                <polyline points="9 18 15 12 9 6"/>
+              </svg>
+            </a>
+          </div>
+
+          <!-- Logout Group -->
+          <div class="tg-settings-group" style="margin-top:16px;">
+            <button id="settingsBtnLogout" class="tg-settings-row text-red">
+              <div class="tg-settings-row-icon icon-red">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+                  <polyline points="16 17 21 12 16 7"/>
+                  <line x1="21" y1="12" x2="9" y2="12"/>
+                </svg>
+              </div>
+              <div class="tg-settings-row-content">
+                <span class="tg-settings-row-title" style="color:var(--tg-red);">تسجيل الخروج</span>
+              </div>
+            </button>
+          </div>
+        </div>
+      </main>
+
+      <!-- Bottom Navigation Bar (Telegram iOS Style) -->
+      <nav class="tg-bottom-nav">
+        <button id="navTabChats" class="tg-bottom-nav-item active">
+          <div class="tg-nav-icon-wrap">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+            </svg>
+            <span id="chatsUnreadCountBadge" class="tg-nav-badge badge-green hidden">0</span>
+          </div>
+          <span class="tg-nav-label">المحادثات</span>
+        </button>
+
+        <button id="navTabRequests" class="tg-bottom-nav-item">
+          <div class="tg-nav-icon-wrap">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+              <circle cx="9" cy="7" r="4"/>
+              <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+              <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+            </svg>
+            <span id="requestsCountBadge" class="tg-nav-badge badge-orange hidden">0</span>
+          </div>
+          <span class="tg-nav-label">الطلبات</span>
+        </button>
+
+        <button id="navTabSettings" class="tg-bottom-nav-item">
+          <div class="tg-nav-icon-wrap">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <circle cx="12" cy="12" r="3"/>
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
+            </svg>
+          </div>
+          <span class="tg-nav-label">الإعدادات</span>
+        </button>
+      </nav>
 
       <!-- ====================================================================
            Telegram Chat Interior View Overlay

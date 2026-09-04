@@ -38,27 +38,28 @@
     regError: document.getElementById("regError"),
     currentUserHandle: document.getElementById("currentUserHandle"),
     currentUserLangBadge: document.getElementById("currentUserLangBadge"),
-    btnOpenDrawer: document.getElementById("btnOpenDrawer"),
-    drawerBackdrop: document.getElementById("drawerBackdrop"),
-    tgDrawer: document.getElementById("tgDrawer"),
-    drawerUserAvatar: document.getElementById("drawerUserAvatar"),
-    drawerUserName: document.getElementById("drawerUserName"),
-    drawerUserHandle: document.getElementById("drawerUserHandle"),
-    drawerBtnLang: document.getElementById("drawerBtnLang"),
-    drawerLangText: document.getElementById("drawerLangText"),
-    drawerBtnLogout: document.getElementById("drawerBtnLogout"),
-    // Tabs & Feeds
-    tabChats: document.getElementById("tabChats"),
+    btnHeaderProfile: document.getElementById("btnHeaderProfile"),
+    // Bottom Navigation Bar (iOS Style)
+    navTabChats: document.getElementById("navTabChats"),
+    navTabRequests: document.getElementById("navTabRequests"),
+    navTabSettings: document.getElementById("navTabSettings"),
     chatsUnreadCountBadge: document.getElementById("chatsUnreadCountBadge"),
-    tabRequests: document.getElementById("tabRequests"),
     requestsCountBadge: document.getElementById("requestsCountBadge"),
     viewChatsFeed: document.getElementById("viewChatsFeed"),
     viewRequestsFeed: document.getElementById("viewRequestsFeed"),
+    viewSettingsFeed: document.getElementById("viewSettingsFeed"),
     contactsContainer: document.getElementById("contactsContainer"),
     incomingRequestsList: document.getElementById("incomingRequestsList"),
     emptyIncomingText: document.getElementById("emptyIncomingText"),
     outgoingRequestsList: document.getElementById("outgoingRequestsList"),
     emptyOutgoingText: document.getElementById("emptyOutgoingText"),
+    // Settings Feed Elements
+    settingsUserAvatar: document.getElementById("settingsUserAvatar"),
+    settingsUserName: document.getElementById("settingsUserName"),
+    settingsUserHandle: document.getElementById("settingsUserHandle"),
+    settingsBtnLang: document.getElementById("settingsBtnLang"),
+    settingsLangText: document.getElementById("settingsLangText"),
+    settingsBtnLogout: document.getElementById("settingsBtnLogout"),
     // FAB & Add Friend Modal
     btnOpenAddFriend: document.getElementById("btnOpenAddFriend"),
     addFriendBackdrop: document.getElementById("addFriendBackdrop"),
@@ -174,63 +175,66 @@
     }
   });
 
-  // --- Telegram Drawer Management ---
-  function openDrawer() {
-    dom.drawerBackdrop.classList.remove("hidden");
-    dom.tgDrawer.classList.remove("hidden");
+  // --- Bottom Navigation Management (iOS Style) ---
+  function switchBottomTab(tabName) {
+    if (dom.navTabChats) dom.navTabChats.classList.toggle("active", tabName === "chats");
+    if (dom.navTabRequests) dom.navTabRequests.classList.toggle("active", tabName === "requests");
+    if (dom.navTabSettings) dom.navTabSettings.classList.toggle("active", tabName === "settings");
+
+    if (dom.viewChatsFeed) dom.viewChatsFeed.classList.toggle("hidden", tabName !== "chats");
+    if (dom.viewRequestsFeed) dom.viewRequestsFeed.classList.toggle("hidden", tabName !== "requests");
+    if (dom.viewSettingsFeed) dom.viewSettingsFeed.classList.toggle("hidden", tabName !== "settings");
+
+    if (tabName === "chats") loadContacts();
+    else if (tabName === "requests") loadFriendRequests();
+    else if (tabName === "settings") updateSettingsUI();
   }
 
-  function closeDrawer() {
-    dom.drawerBackdrop.classList.add("hidden");
-    dom.tgDrawer.classList.add("hidden");
-  }
+  if (dom.navTabChats) dom.navTabChats.addEventListener("click", () => switchBottomTab("chats"));
+  if (dom.navTabRequests) dom.navTabRequests.addEventListener("click", () => switchBottomTab("requests"));
+  if (dom.navTabSettings) dom.navTabSettings.addEventListener("click", () => switchBottomTab("settings"));
+  if (dom.btnHeaderProfile) dom.btnHeaderProfile.addEventListener("click", () => switchBottomTab("settings"));
 
-  dom.btnOpenDrawer.addEventListener("click", openDrawer);
-  dom.drawerBackdrop.addEventListener("click", closeDrawer);
-
-  dom.drawerBtnLogout.addEventListener("click", async () => {
-    try {
-      await fetch("/api/auth/logout", { method: "POST", headers: authHeaders() });
-    } catch (_e) {}
-    localStorage.removeItem("calltranslate_usr_token");
-    location.reload();
-  });
-
-  dom.drawerBtnLang.addEventListener("click", async () => {
+  function updateSettingsUI() {
     if (!currentUser) return;
-    const newLang = currentUser.language === "ar" ? "en" : "ar";
-    try {
-      await fetch("/api/user/language", {
-        method: "PUT",
-        headers: authHeaders(),
-        body: JSON.stringify({ language: newLang }),
-      });
-      currentUser.language = newLang;
-      updateUserLangUI();
-    } catch (_e) {}
-  });
-
-  function updateUserLangUI() {
     const isAr = currentUser.language === "ar";
-    dom.currentUserLangBadge.textContent = isAr ? "AR" : "EN";
-    dom.drawerLangText.textContent = isAr ? "العربية (AR)" : "English (EN)";
+    if (dom.currentUserHandle) dom.currentUserHandle.textContent = `@${currentUser.username}`;
+    if (dom.currentUserLangBadge) dom.currentUserLangBadge.textContent = isAr ? "AR" : "EN";
+
+    if (dom.settingsUserName) dom.settingsUserName.textContent = currentUser.display_name || currentUser.username;
+    if (dom.settingsUserHandle) dom.settingsUserHandle.textContent = `@${currentUser.username}`;
+    if (dom.settingsLangText) dom.settingsLangText.textContent = isAr ? "العربية (AR)" : "English (EN)";
+    if (dom.settingsUserAvatar) {
+      dom.settingsUserAvatar.textContent = (currentUser.display_name || currentUser.username).charAt(0).toUpperCase();
+      dom.settingsUserAvatar.className = `tg-avatar ${getAvatarColorClass(currentUser.username)}`;
+    }
   }
 
-  // --- Segment Tabs Navigation (Chats vs Requests) ---
-  dom.tabChats.addEventListener("click", () => {
-    dom.tabChats.classList.add("active");
-    dom.tabRequests.classList.remove("active");
-    dom.viewChatsFeed.classList.remove("hidden");
-    dom.viewRequestsFeed.classList.add("hidden");
-  });
+  if (dom.settingsBtnLang) {
+    dom.settingsBtnLang.addEventListener("click", async () => {
+      if (!currentUser) return;
+      const newLang = currentUser.language === "ar" ? "en" : "ar";
+      try {
+        await fetch("/api/user/language", {
+          method: "PUT",
+          headers: authHeaders(),
+          body: JSON.stringify({ language: newLang }),
+        });
+        currentUser.language = newLang;
+        updateSettingsUI();
+      } catch (_e) {}
+    });
+  }
 
-  dom.tabRequests.addEventListener("click", () => {
-    dom.tabRequests.classList.add("active");
-    dom.tabChats.classList.remove("active");
-    dom.viewRequestsFeed.classList.remove("hidden");
-    dom.viewChatsFeed.classList.add("hidden");
-    loadFriendRequests();
-  });
+  if (dom.settingsBtnLogout) {
+    dom.settingsBtnLogout.addEventListener("click", async () => {
+      try {
+        await fetch("/api/auth/logout", { method: "POST", headers: authHeaders() });
+      } catch (_e) {}
+      localStorage.removeItem("calltranslate_usr_token");
+      location.reload();
+    });
+  }
 
   // --- Add Friend Bottom Sheet Modal ---
   function openAddFriendModal() {
@@ -269,17 +273,7 @@
 
   async function initUserApp() {
     dom.authBox.classList.add("hidden");
-
-    // Header Tag
-    dom.currentUserHandle.textContent = `@${currentUser.username}`;
-    updateUserLangUI();
-
-    // Drawer info
-    dom.drawerUserName.textContent = currentUser.display_name || currentUser.username;
-    dom.drawerUserHandle.textContent = `@${currentUser.username}`;
-    dom.drawerUserAvatar.textContent = (currentUser.display_name || currentUser.username).charAt(0).toUpperCase();
-    dom.drawerUserAvatar.className = `tg-avatar ${getAvatarColorClass(currentUser.username)}`;
-
+    updateSettingsUI();
     connectUserHub();
     await loadContacts();
     await loadFriendRequests();

@@ -223,63 +223,76 @@ html, body {
   font-weight: 600;
 }
 
-/* Tab Navigation (Chats / Requests) */
-.tg-tabs-nav {
+/* ==========================================================================
+   Bottom Navigation Bar (Telegram iOS Style)
+   ========================================================================== */
+.tg-bottom-nav {
   background-color: var(--tg-header-bg);
-  display: flex;
-  border-bottom: 1px solid var(--tg-border);
-  z-index: 20;
-}
-
-.tg-tab-item {
-  flex: 1;
-  text-align: center;
-  padding: 12px 0 10px;
-  font-size: 0.9rem;
-  font-weight: 600;
-  color: var(--tg-text-secondary);
-  background: none;
-  border: none;
-  cursor: pointer;
-  position: relative;
-  transition: color 0.2s;
+  border-top: 1px solid var(--tg-border);
   display: flex;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
+  justify-content: space-around;
+  height: 60px;
+  padding-bottom: max(6px, env(safe-area-inset-bottom));
+  z-index: 40;
+  flex-shrink: 0;
+  box-sizing: border-box;
 }
 
-.tg-tab-item.active {
+.tg-bottom-nav-item {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: none;
+  border: none;
+  color: var(--tg-text-secondary);
+  cursor: pointer;
+  padding: 4px 0;
+  transition: color 0.15s;
+  position: relative;
+}
+
+.tg-bottom-nav-item.active {
   color: var(--tg-blue);
 }
 
-.tg-tab-item.active::after {
-  content: "";
-  position: absolute;
-  bottom: 0;
-  left: 20%;
-  right: 20%;
-  height: 3px;
-  background-color: var(--tg-blue);
-  border-radius: 3px 3px 0 0;
+.tg-nav-icon-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
 }
 
-.tg-tab-badge {
-  background-color: var(--tg-blue);
-  color: #fff;
+.tg-nav-label {
   font-size: 0.72rem;
+  font-weight: 600;
+  margin-top: 3px;
+}
+
+.tg-nav-badge {
+  position: absolute;
+  top: -4px;
+  left: -8px;
+  font-size: 0.68rem;
   font-weight: 700;
-  padding: 1px 7px;
-  border-radius: 12px;
-  min-width: 18px;
+  padding: 1px 6px;
+  border-radius: 10px;
+  color: #fff;
+  min-width: 16px;
+  text-align: center;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.4);
 }
 
-.tg-tab-badge.badge-orange {
-  background-color: var(--tg-orange);
-}
-
-.tg-tab-badge.badge-green {
+.tg-nav-badge.badge-green {
   background-color: var(--tg-green);
+}
+
+.tg-nav-badge.badge-orange {
+  background-color: var(--tg-orange);
 }
 
 .tg-unread-badge {
@@ -460,10 +473,10 @@ html, body {
 /* Floating Action Button (Telegram Signature Blue FAB) */
 .tg-fab-button {
   position: absolute;
-  bottom: 24px;
+  bottom: calc(75px + env(safe-area-inset-bottom));
   left: 20px;
-  width: 56px;
-  height: 56px;
+  width: 54px;
+  height: 54px;
   border-radius: 50%;
   background-color: var(--tg-blue);
   color: #fff;
@@ -503,6 +516,103 @@ html, body {
   letter-spacing: 0.5px;
   color: var(--tg-blue);
   margin-bottom: 8px;
+}
+
+/* ==========================================================================
+   Settings & Profile Feed (iOS Card Style)
+   ========================================================================== */
+.tg-settings-feed {
+  padding: 20px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.tg-settings-profile-card {
+  background-color: var(--tg-header-bg);
+  border: 1px solid var(--tg-border);
+  border-radius: 18px;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+}
+
+.tg-settings-group {
+  background-color: var(--tg-header-bg);
+  border: 1px solid var(--tg-border);
+  border-radius: 16px;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+}
+
+.tg-settings-row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  background: none;
+  border: none;
+  width: 100%;
+  box-sizing: border-box;
+  text-align: right;
+  cursor: pointer;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  transition: background-color 0.15s;
+}
+
+.tg-settings-row:last-child {
+  border-bottom: none;
+}
+
+.tg-settings-row:hover {
+  background-color: rgba(255, 255, 255, 0.04);
+}
+
+.tg-settings-row-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.tg-settings-row-icon.icon-blue {
+  background-color: rgba(36, 139, 218, 0.2);
+  color: var(--tg-blue);
+}
+
+.tg-settings-row-icon.icon-orange {
+  background-color: rgba(245, 124, 0, 0.2);
+  color: var(--tg-orange);
+}
+
+.tg-settings-row-icon.icon-red {
+  background-color: rgba(229, 57, 53, 0.2);
+  color: var(--tg-red);
+}
+
+.tg-settings-row-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.tg-settings-row-title {
+  color: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.tg-settings-row-value {
+  color: var(--tg-text-secondary);
+  font-size: 0.8rem;
 }
 
 .tg-request-card {
