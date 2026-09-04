@@ -462,7 +462,10 @@ def list_contacts(user_id: int) -> list[dict[str, Any]]:
                     WHERE m.to_user_id = ? AND m.from_user_id = u.id AND m.is_read = 0
                 ) AS unread_count,
                 (
-                    SELECT m.original_text 
+                    SELECT CASE 
+                        WHEN m.to_user_id = ? AND m.translated_text != '' THEN m.translated_text 
+                        ELSE m.original_text 
+                    END
                     FROM messages m 
                     WHERE (m.from_user_id = ? AND m.to_user_id = u.id) 
                        OR (m.from_user_id = u.id AND m.to_user_id = ?) 
@@ -481,7 +484,7 @@ def list_contacts(user_id: int) -> list[dict[str, Any]]:
             JOIN users u ON c.contact_user_id = u.id
             WHERE c.user_id = ?
             ORDER BY COALESCE(last_message_time, 0) DESC, u.display_name ASC
-        """, (user_id, user_id, user_id, user_id, user_id, user_id)).fetchall()
+        """, (user_id, user_id, user_id, user_id, user_id, user_id, user_id)).fetchall()
         return [
             {
                 "id": r["id"],

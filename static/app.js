@@ -645,25 +645,13 @@
       ? new Date(msg.created_at * 1000).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
       : "";
 
-    let translationHtml = "";
-    if (msg.translated_text && msg.translated_text !== msg.original_text) {
-      translationHtml = `
-        <div class="tg-translation-box">
-          <div class="tg-translation-header">
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
-              <circle cx="12" cy="12" r="10"/>
-              <line x1="2" y1="12" x2="22" y2="12"/>
-            </svg>
-            <span>ترجمة فورية</span>
-          </div>
-          <div>${escapeHtml(msg.translated_text)}</div>
-        </div>
-      `;
-    }
+    // Show translated text directly for incoming message, or original for sender
+    const displayText = (!isOut && msg.translated_text) ? msg.translated_text : msg.original_text;
+    const isTranslated = !isOut && msg.translated_text && msg.translated_text.trim().toLowerCase() !== msg.original_text.trim().toLowerCase();
+    const tooltipAttr = isTranslated ? `title="النص الأصلي: ${escapeHtml(msg.original_text)}"` : "";
 
     bubble.innerHTML = `
-      <div class="tg-bubble-original-text">${escapeHtml(msg.original_text)}</div>
-      ${translationHtml}
+      <div class="tg-bubble-text" ${tooltipAttr}>${escapeHtml(displayText)}</div>
       <div class="tg-bubble-footer">
         <span>${timeStr}</span>
         ${isOut ? '<span style="color:#79b8ff;">✓✓</span>' : ''}
