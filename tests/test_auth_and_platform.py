@@ -252,3 +252,25 @@ def test_chat_messaging_and_outgoing_friend_requests():
         c_res2 = client.get("/api/contacts", headers=h2)
         contacts2 = c_res2.json()["contacts"]
         assert contacts2[0]["unread_count"] == 0
+
+
+def test_conversation_history_returns_the_latest_messages_in_order():
+    sender = db.create_user("history_sender", "password123", "Sender", "ar")
+    recipient = db.create_user("history_recipient", "password123", "Recipient", "en")
+
+    for index in range(65):
+        db.save_message(
+            sender["id"],
+            recipient["id"],
+            f"message-{index:02d}",
+            f"translated-{index:02d}",
+            "ar",
+            "en",
+        )
+
+    messages = db.list_conversation_messages(sender["id"], recipient["id"], limit=60)
+
+    assert len(messages) == 60
+    assert messages[0]["original_text"] == "message-05"
+    assert messages[-1]["original_text"] == "message-64"
+    assert [message["id"] for message in messages] == sorted(message["id"] for message in messages)

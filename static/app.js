@@ -1,4 +1,25 @@
 (() => {
+  // Authentication details must never remain in the address bar, history, or
+  // copied links. The app authenticates with POST requests only.
+  function stripSensitiveAuthParams() {
+    try {
+      const url = new URL(window.location.href);
+      let changed = false;
+      for (const key of ["username", "password"]) {
+        if (url.searchParams.has(key)) {
+          url.searchParams.delete(key);
+          changed = true;
+        }
+      }
+      if (changed) {
+        const cleanUrl = `${url.pathname}${url.search}${url.hash}`;
+        window.history.replaceState(null, document.title, cleanUrl);
+      }
+    } catch (_e) {}
+  }
+
+  stripSensitiveAuthParams();
+
   // iOS Safari can report a layout viewport that continues underneath its
   // bottom toolbar. Keep the app shell tied to the actually visible viewport.
   function syncVisibleViewportHeight() {
@@ -110,6 +131,7 @@
     callOverlayAvatar: document.getElementById("callOverlayAvatar"),
     callCaptionText: document.getElementById("callCaptionText"),
     btnCallMute: document.getElementById("btnCallMute"),
+    callMuteLabel: document.getElementById("callMuteLabel"),
     btnCallEnd: document.getElementById("btnCallEnd"),
     incomingModal: document.getElementById("incomingModal"),
     incomingAvatar: document.getElementById("incomingAvatar"),
@@ -164,6 +186,8 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Login failed");
       userToken = data.token;
+      currentUser = data.user;
+      dom.loginPassword.value = "";
       localStorage.setItem("calltranslate_usr_token", userToken);
       await initUserApp();
     } catch (err) {
@@ -189,6 +213,8 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.detail || "Registration failed");
       userToken = data.token;
+      currentUser = data.user;
+      dom.regPassword.value = "";
       localStorage.setItem("calltranslate_usr_token", userToken);
       await initUserApp();
     } catch (err) {
@@ -673,18 +699,41 @@
     if (activeChatContact) initiateCall(activeChatContact);
   });
 
+  function showChatMessageState(message, isError = false) {
+    dom.chatMessagesContainer.replaceChildren();
+    const state = document.createElement("div");
+    state.className = `tg-chat-message-state${isError ? " is-error" : ""}`;
+    state.textContent = message;
+    dom.chatMessagesContainer.appendChild(state);
+  }
+
   async function loadChatMessages(username) {
-    dom.chatMessagesContainer.innerHTML = "";
+    const requestedUsername = username;
+    showChatMessageState("جاري تحميل الرسائل...");
     try {
       const res = await fetch(`/api/messages/${username}`, { headers: authHeaders() });
-      if (!res.ok) return;
+      if (!res.ok) throw new Error("تعذر تحميل الرسائل");
       const data = await res.json();
-      (data.messages || []).forEach(appendMessageBubble);
+      if (!activeChatContact || activeChatContact.username !== requestedUsername) return;
+
+      const messages = data.messages || [];
+      dom.chatMessagesContainer.replaceChildren();
+      if (messages.length === 0) {
+        showChatMessageState("لا توجد رسائل في هذه المحادثة بعد.");
+        return;
+      }
+
+      messages.forEach(appendMessageBubble);
       scrollChatToBottom();
-    } catch (_e) {}
+    } catch (_e) {
+      if (activeChatContact && activeChatContact.username === requestedUsername) {
+        showChatMessageState("تعذر عرض الرسائل. حاول مرة أخرى.", true);
+      }
+    }
   }
 
   function appendMessageBubble(msg) {
+    if (!currentUser) throw new Error("User session is not initialized");
     const isOut = msg.from_user_id === currentUser.id;
     const bubble = document.createElement("div");
     bubble.className = `tg-bubble ${isOut ? "out" : "in"}`;
@@ -723,17 +772,18 @@
     e.preventDefault();
     const text = dom.chatTextInput.value.trim();
     if (!text || !activeChatContact) return;
+    const recipientUsername = activeChatContact.username;
     dom.chatTextInput.value = "";
 
     try {
-      const res = await fetch(`/api/messages/${activeChatContact.username}`, {
+      const res = await fetch(`/api/messages/${recipientUsername}`, {
         method: "POST",
         headers: authHeaders(),
         body: JSON.stringify({ text }),
       });
       if (res.ok) {
         const data = await res.json();
-        if (data.message) {
+        if (data.message && activeChatContact?.username === recipientUsername) {
           appendMessageBubble(data.message);
           scrollChatToBottom();
         }
@@ -787,6 +837,7 @@
     dom.callStatusLine.textContent = "جاري الاتصال والرنين...";
     dom.callCaptionText.textContent = "بانتظار قبول الطرف الآخر للمكالمة...";
     dom.callTimer.textContent = "00:00";
+    setCallMuted(false);
     dom.callOverlay.classList.remove("hidden");
 
     hubSocket.send(JSON.stringify({
@@ -846,6 +897,7 @@
     dom.callStatusLine.textContent = "جاري تفعيل المكالمة المترجمة...";
     dom.callCaptionText.textContent = "جاري تشغيل محرك الترجمة...";
     dom.callTimer.textContent = "00:00";
+    setCallMuted(false);
     dom.callOverlay.classList.remove("hidden");
 
     await startCallWebRTC();
@@ -919,6 +971,7 @@
         video: false,
         audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
       });
+      setCallMuted(false);
 
       const cfgRes = await fetch("/api/client-config", {
         headers: { Authorization: `Bearer ${activeCallSession.accessToken}` },
@@ -1207,6 +1260,27 @@
       localMediaStream.getTracks().forEach((t) => t.stop());
       localMediaStream = null;
     }
+    setCallMuted(false);
+  }
+
+  function setCallMuted(muted) {
+    const isMuted = Boolean(muted);
+    if (localMediaStream) {
+      localMediaStream.getAudioTracks().forEach((track) => {
+        track.enabled = !isMuted;
+      });
+    }
+
+    if (!dom.btnCallMute) return;
+    dom.btnCallMute.classList.toggle("active-mute", isMuted);
+    dom.btnCallMute.setAttribute("aria-pressed", String(isMuted));
+    const action = isMuted ? "تشغيل الميكروفون" : "كتم الميكروفون";
+    dom.btnCallMute.title = action;
+    dom.btnCallMute.setAttribute("aria-label", action);
+    if (dom.callMuteLabel) {
+      dom.callMuteLabel.textContent = isMuted ? "الميكروفون مكتوم" : "الميكروفون يعمل";
+      dom.callMuteLabel.classList.toggle("is-muted", isMuted);
+    }
   }
 
   function teardownPeer() {
@@ -1275,12 +1349,11 @@
     }
   }
 
-  dom.btnCallMute.addEventListener("click", () => {
+  dom.btnCallMute?.addEventListener("click", () => {
     if (!localMediaStream) return;
     const tracks = localMediaStream.getAudioTracks();
-    const currentlyEnabled = tracks.some((t) => t.enabled);
-    tracks.forEach((t) => (t.enabled = !currentlyEnabled));
-    dom.btnCallMute.classList.toggle("active-mute", !currentlyEnabled);
+    if (tracks.length === 0) return;
+    setCallMuted(tracks.some((track) => track.enabled));
   });
 
   checkSession();

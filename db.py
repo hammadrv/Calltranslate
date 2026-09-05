@@ -619,11 +619,15 @@ def list_conversation_messages(user_id1: int, user_id2: int, limit: int = 60) ->
         rows = conn.execute(
             """
             SELECT id, from_user_id, to_user_id, original_text, translated_text, from_lang, to_lang, created_at, is_read
-            FROM messages
-            WHERE (from_user_id = ? AND to_user_id = ?)
-               OR (from_user_id = ? AND to_user_id = ?)
+            FROM (
+                SELECT id, from_user_id, to_user_id, original_text, translated_text, from_lang, to_lang, created_at, is_read
+                FROM messages
+                WHERE (from_user_id = ? AND to_user_id = ?)
+                   OR (from_user_id = ? AND to_user_id = ?)
+                ORDER BY created_at DESC, id DESC
+                LIMIT ?
+            ) AS recent_messages
             ORDER BY created_at ASC, id ASC
-            LIMIT ?
             """,
             (user_id1, user_id2, user_id2, user_id1, limit),
         ).fetchall()

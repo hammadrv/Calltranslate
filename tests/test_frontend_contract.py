@@ -227,8 +227,8 @@ def test_app_has_refined_contact_and_empty_states_without_plan_badges() -> None:
     javascript = APP_JS.read_text(encoding="utf-8")
     styles = APP_CSS.read_text(encoding="utf-8")
 
-    assert 'app.css?v=5.0' in html
-    assert 'app.js?v=5.0' in html
+    assert 'app.css?v=5.1' in html
+    assert 'app.js?v=5.1' in html
     assert 'row.className = "tg-chat-row"' in javascript
     assert 'document.createElement("button")' in javascript
     assert 'class="tg-empty-action"' in javascript
@@ -239,3 +239,35 @@ def test_app_has_refined_contact_and_empty_states_without_plan_badges() -> None:
     assert re.search(r"@media\s*\(prefers-reduced-motion:\s*reduce\)", styles)
     assert "Premium" not in html
     assert "الدقائق المتبقية" not in html
+
+
+def test_app_login_and_chat_rendering_keep_user_state_initialized() -> None:
+    html = APP_HTML.read_text(encoding="utf-8")
+    javascript = APP_JS.read_text(encoding="utf-8")
+    styles = APP_CSS.read_text(encoding="utf-8")
+
+    assert javascript.count("currentUser = data.user;") >= 3
+    assert "stripSensitiveAuthParams" in javascript
+    assert '["username", "password"]' in javascript
+    assert re.search(r'id="loginForm"[^>]*method="post"', html)
+    assert re.search(r'id="registerForm"[^>]*method="post"', html)
+    assert "showChatMessageState" in javascript
+    assert "tg-chat-message-state" in styles
+
+
+def test_app_mute_control_matches_the_real_audio_track_state() -> None:
+    parser = CallPageParser()
+    parser.feed(APP_HTML.read_text(encoding="utf-8"))
+    javascript = APP_JS.read_text(encoding="utf-8")
+    styles = APP_CSS.read_text(encoding="utf-8")
+
+    tag, mute = parser.find_by_id("btnCallMute")
+    assert tag == "button"
+    assert mute.get("type") == "button"
+    assert mute.get("aria-pressed") == "false"
+    assert 'class="tg-mic-muted-slash"' in APP_HTML.read_text(encoding="utf-8")
+    assert "track.enabled = !isMuted" in javascript
+    assert 'classList.toggle("active-mute", isMuted)' in javascript
+    assert 'setAttribute("aria-pressed", String(isMuted))' in javascript
+    assert "setCallMuted(tracks.some((track) => track.enabled))" in javascript
+    assert ".tg-btn-mute.active-mute .tg-mic-muted-slash" in styles

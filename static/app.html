@@ -6,7 +6,7 @@
     <meta name="theme-color" content="#121e2a">
     <title>Calltranslate</title>
     <link rel="icon" href="/static/favicon.svg?v=2" type="image/svg+xml">
-    <link rel="stylesheet" href="/static/app.css?v=5.0">
+    <link rel="stylesheet" href="/static/app.css?v=5.1">
   </head>
   <body>
     <div class="telegram-device-shell">
@@ -300,21 +300,35 @@
           </div>
         </div>
 
-        <div class="tg-call-controls">
-          <button id="btnCallMute" class="tg-call-circle-btn tg-btn-mute" title="كتم الصوت">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-              <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-              <line x1="12" y1="19" x2="12" y2="23"/>
-              <line x1="8" y1="23" x2="16" y2="23"/>
-            </svg>
-          </button>
-          <button id="btnCallEnd" class="tg-call-circle-btn tg-btn-hangup" title="إنهاء المكالمة">
-            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
-              <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/>
-              <line x1="23" y1="1" x2="1" y2="23"/>
-            </svg>
-          </button>
+        <div class="tg-call-controls" role="group" aria-label="أزرار المكالمة">
+          <div class="tg-call-control-item">
+            <button
+              id="btnCallMute"
+              class="tg-call-circle-btn tg-btn-mute"
+              type="button"
+              title="كتم الميكروفون"
+              aria-label="كتم الميكروفون"
+              aria-pressed="false"
+            >
+              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+                <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                <line x1="12" y1="19" x2="12" y2="23"/>
+                <line x1="8" y1="23" x2="16" y2="23"/>
+                <line class="tg-mic-muted-slash" x1="3" y1="3" x2="21" y2="21"/>
+              </svg>
+            </button>
+            <span id="callMuteLabel" class="tg-call-control-label" aria-live="polite">الميكروفون يعمل</span>
+          </div>
+          <div class="tg-call-control-item">
+            <button id="btnCallEnd" class="tg-call-circle-btn tg-btn-hangup" type="button" title="إنهاء المكالمة" aria-label="إنهاء المكالمة">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2">
+                <path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"/>
+                <line x1="23" y1="1" x2="1" y2="23"/>
+              </svg>
+            </button>
+            <span class="tg-call-control-label">إنهاء</span>
+          </div>
         </div>
       </div>
 
@@ -399,7 +413,7 @@
           <button id="tabRegister" class="tg-tab-item" style="padding:10px;">حساب جديد</button>
         </div>
 
-        <form id="loginForm" style="display:flex; flex-direction:column; gap:14px;">
+        <form id="loginForm" method="post" style="display:flex; flex-direction:column; gap:14px;">
           <div>
             <label style="display:block; font-size:0.8rem; color:var(--tg-text-secondary); margin-bottom:4px;">اسم المستخدم (Username)</label>
             <input type="text" id="loginUsername" name="username" class="tg-message-input-capsule" style="width:100%; border-radius:12px;" required autocomplete="username">
@@ -412,7 +426,7 @@
           <button type="submit" class="btn-tg-action btn-accept-req" style="background-color:var(--tg-blue); padding:13px; border-radius:12px; font-size:0.95rem; margin-top:8px;">دخول</button>
         </form>
 
-        <form id="registerForm" style="display:flex; flex-direction:column; gap:14px;" class="hidden">
+        <form id="registerForm" method="post" style="display:flex; flex-direction:column; gap:14px;" class="hidden">
           <div>
             <label style="display:block; font-size:0.8rem; color:var(--tg-text-secondary); margin-bottom:4px;">اسم المستخدم الجديد (Username)</label>
             <input type="text" id="regUsername" name="username" class="tg-message-input-capsule" style="width:100%; border-radius:12px;" required minlength="3">
@@ -442,6 +456,6 @@
     <audio id="appTranslatedAudio" autoplay playsinline></audio>
     <audio id="appAudioPuller" muted playsinline hidden></audio>
 
-    <script src="/static/app.js?v=5.0" defer></script>
+    <script src="/static/app.js?v=5.1" defer></script>
   </body>
 </html>

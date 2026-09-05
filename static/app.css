@@ -1004,6 +1004,23 @@ html, body {
   gap: 10px;
 }
 
+.tg-chat-message-state {
+  margin: auto;
+  padding: 10px 14px;
+  border-radius: 12px;
+  color: var(--tg-text-secondary);
+  background: rgba(23, 33, 43, 0.72);
+  border: 1px solid var(--tg-border);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.tg-chat-message-state.is-error {
+  color: #ffb7b4;
+  border-color: rgba(229, 57, 53, 0.38);
+  background: rgba(229, 57, 53, 0.12);
+}
+
 /* Telegram Speech Bubbles */
 .tg-bubble {
   max-width: 82%;
@@ -1240,7 +1257,27 @@ html, body {
 .tg-call-controls {
   display: flex;
   justify-content: center;
+  align-items: flex-start;
   gap: 32px;
+}
+
+.tg-call-control-item {
+  min-width: 92px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.tg-call-control-label {
+  color: rgba(255, 255, 255, 0.78);
+  font-size: 0.74rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.tg-call-control-label.is-muted {
+  color: #ff9b98;
 }
 
 .tg-call-circle-btn {
@@ -1264,7 +1301,18 @@ html, body {
 }
 
 .tg-btn-mute.active-mute {
-  background-color: var(--tg-orange);
+  background-color: var(--tg-red);
+  box-shadow: 0 0 0 5px rgba(229, 57, 53, 0.14), 0 6px 20px rgba(229, 57, 53, 0.38);
+}
+
+.tg-mic-muted-slash {
+  opacity: 0;
+  stroke-width: 2.8;
+  transition: opacity 0.15s ease;
+}
+
+.tg-btn-mute.active-mute .tg-mic-muted-slash {
+  opacity: 1;
 }
 
 .tg-btn-hangup {
